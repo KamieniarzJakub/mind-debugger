@@ -19,6 +19,8 @@ interface TestRunnerPanelProps {
   isRunning: boolean;
   onAskMentorAboutError?: (errorDetails: string) => void;
   onRequestHintLevel?: (level: 1 | 2 | 3) => void;
+  height?: number;
+  onResizeStart?: (e: React.MouseEvent) => void;
 }
 
 export const TestRunnerPanel: React.FC<TestRunnerPanelProps> = ({
@@ -26,6 +28,8 @@ export const TestRunnerPanel: React.FC<TestRunnerPanelProps> = ({
   isRunning,
   onAskMentorAboutError,
   onRequestHintLevel,
+  height,
+  onResizeStart,
 }) => {
   const [activeTab, setActiveTab] = React.useState<'tests' | 'console'>('tests');
   const [isCollapsed, setIsCollapsed] = React.useState(false);
@@ -51,9 +55,21 @@ export const TestRunnerPanel: React.FC<TestRunnerPanelProps> = ({
   };
 
   return (
-    <div className={`border-t border-slate-800 bg-slate-900 transition-all flex flex-col ${
-      isCollapsed ? 'h-10' : 'h-64 md:h-72'
-    }`}>
+    <div 
+      style={{ height: isCollapsed ? 40 : (height || 260) }}
+      className="border-t border-slate-800 bg-slate-900 flex flex-col relative"
+    >
+      {/* Draggable Row Resize Handle */}
+      {onResizeStart && !isCollapsed && (
+        <div
+          onMouseDown={onResizeStart}
+          className="h-1.5 w-full bg-slate-800/80 hover:bg-indigo-500 cursor-row-resize transition-colors flex items-center justify-center group z-10 select-none"
+          title="Przeciągnij w górę lub w dół, aby zmienić wysokość panelu testów"
+        >
+          <div className="w-12 h-0.5 rounded-full bg-slate-600 group-hover:bg-white transition-colors" />
+        </div>
+      )}
+
       {/* Panel Tab Bar */}
       <div className="h-10 px-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between select-none">
         <div className="flex items-center gap-1">

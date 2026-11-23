@@ -9,7 +9,9 @@ import {
   AlertCircle, 
   Loader2,
   Sparkles,
-  BookOpen
+  BookOpen,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { Task, AISettings } from '../types';
 import { WorkerStatus } from '../services/pyodideService';
@@ -36,7 +38,24 @@ export const Header: React.FC<HeaderProps> = ({
   aiSettings
 }) => {
   const [taskDropdownOpen, setTaskDropdownOpen] = React.useState(false);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -217,6 +236,15 @@ export const Header: React.FC<HeaderProps> = ({
           title="Ustawienia Mentora AI i klucze API"
         >
           <Settings className="w-4 h-4 text-slate-300" />
+        </button>
+
+        {/* Fullscreen Button */}
+        <button
+          onClick={toggleFullscreen}
+          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 transition-colors"
+          title={isFullscreen ? 'Wyłącz pełny ekran' : 'Włącz pełny ekran'}
+        >
+          {isFullscreen ? <Minimize2 className="w-4 h-4 text-indigo-400" /> : <Maximize2 className="w-4 h-4" />}
         </button>
       </div>
     </header>

@@ -61,6 +61,107 @@ export default function App() {
   const [layoutMode, setLayoutMode] = React.useState<'3-column' | '2-column'>('3-column');
   const [leftTab, setLeftTab] = React.useState<'desc' | 'editor'>('desc');
 
+  // Resizable proportions state (saved in localStorage)
+  const [leftWidth, setLeftWidth] = React.useState<number>(() => {
+    const saved = localStorage.getItem('minddebugger_left_width');
+    return saved ? Math.max(15, Math.min(50, parseFloat(saved))) : 28;
+  });
+  const [rightWidth, setRightWidth] = React.useState<number>(() => {
+    const saved = localStorage.getItem('minddebugger_right_width');
+    return saved ? Math.max(18, Math.min(45, parseFloat(saved))) : 28;
+  });
+  const [testPanelHeight, setTestPanelHeight] = React.useState<number>(() => {
+    const saved = localStorage.getItem('minddebugger_test_height');
+    return saved ? Math.max(120, Math.min(600, parseInt(saved, 10))) : 260;
+  });
+  const [isEditorMaximized, setIsEditorMaximized] = React.useState<boolean>(false);
+  const [isDragging, setIsDragging] = React.useState<boolean>(false);
+
+  // Drag handlers for vertical splitters (horizontal resizing)
+  const handleLeftResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    const startX = e.clientX;
+    const startWidth = leftWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaPercent = (deltaX / window.innerWidth) * 100;
+      const newWidth = Math.max(15, Math.min(50, startWidth + deltaPercent));
+      setLeftWidth(newWidth);
+      localStorage.setItem('minddebugger_left_width', newWidth.toString());
+    };
+
+    const onMouseUp = () => {
+      setIsDragging(false);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleRightResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    const startX = e.clientX;
+    const startWidth = rightWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = startX - moveEvent.clientX; // Dragging left expands right panel
+      const deltaPercent = (deltaX / window.innerWidth) * 100;
+      const newWidth = Math.max(18, Math.min(45, startWidth + deltaPercent));
+      setRightWidth(newWidth);
+      localStorage.setItem('minddebugger_right_width', newWidth.toString());
+    };
+
+    const onMouseUp = () => {
+      setIsDragging(false);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // Drag handler for horizontal splitter (vertical resizing of test runner panel)
+  const handleVerticalResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
+    const startY = e.clientY;
+    const startHeight = testPanelHeight;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = startY - moveEvent.clientY; // Dragging up expands bottom test panel
+      const newHeight = Math.max(120, Math.min(600, startHeight + deltaY));
+      setTestPanelHeight(newHeight);
+      localStorage.setItem('minddebugger_test_height', newHeight.toString());
+    };
+
+    const onMouseUp = () => {
+      setIsDragging(false);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
   const currentCode = codePerTask[currentTask.id] || currentTask.starterCode;
   const currentMessages = chatPerTask[currentTask.id] || [];
 
@@ -238,18 +339,37 @@ export default function App() {
         </div>
 
         {layoutMode === '3-column' ? (
-          /* 3-Column Wide Layout */
-          <div className="w-full h-full grid grid-cols-1 md:grid-cols-12 overflow-hidden">
-            {/* Column 1: Task Description (35%) */}
-            <div className="hidden md:block md:col-span-4 lg:col-span-4 h-full min-h-0">
-              <TaskDescription
-                task={currentTask}
-                onAskMentorQuestion={handleUserSendMessage}
-              />
-            </div>
+          /* 3-Column Resizable Layout */
+          <div className="w-full h-full flex overflow-hidden relative">
+            {/* Column 1: Task Description */}
+            {!isEditorMaximized && (
+              <div 
+                style={{ width: `${leftWidth}%` }}
+                className="hidden md:flex flex-col h-full min-h-0 flex-shrink-0"
+              >
+                <TaskDescription
+                  task={currentTask}
+                  onAskMentorQuestion={handleUserSendMessage}
+                />
+              </div>
+            )}
 
-            {/* Column 2: Code Editor + Test Panel (42%) */}
-            <div className="col-span-12 md:col-span-8 lg:col-span-5 h-full flex flex-col min-h-0 border-r border-slate-800">
+            {/* Drag Handle 1 (Left <-> Center) */}
+            {!isEditorMaximized && (
+              <div
+                onMouseDown={handleLeftResizeStart}
+                className="hidden md:flex w-1.5 hover:w-2 bg-slate-800 hover:bg-indigo-500 active:bg-indigo-600 cursor-col-resize transition-all items-center justify-center z-20 flex-shrink-0 group select-none"
+                title="Przeciągnij w lewo lub w prawo, aby dostosować proporcje opisu i edytora"
+              >
+                <div className="h-8 w-0.5 rounded-full bg-slate-600 group-hover:bg-white transition-colors" />
+              </div>
+            )}
+
+            {/* Column 2: Code Editor + Test Panel */}
+            <div 
+              style={{ width: isEditorMaximized ? '100%' : `${100 - leftWidth - rightWidth}%` }}
+              className="flex-1 flex flex-col h-full min-h-0 relative"
+            >
               <div className="flex-1 min-h-0">
                 <CodeEditor
                   code={currentCode}
@@ -257,6 +377,8 @@ export default function App() {
                   onRun={handleRunCode}
                   onReset={handleResetCode}
                   isRunning={isRunning}
+                  isMaximized={isEditorMaximized}
+                  onToggleMaximize={() => setIsEditorMaximized(!isEditorMaximized)}
                 />
               </div>
               <div className="flex-shrink-0">
@@ -265,49 +387,72 @@ export default function App() {
                   isRunning={isRunning}
                   onAskMentorAboutError={(err) => handleUserSendMessage(`Dlaczego test nie przeszedł? ${err}`)}
                   onRequestHintLevel={handleSelectHintLevel}
+                  height={testPanelHeight}
+                  onResizeStart={handleVerticalResizeStart}
                 />
               </div>
             </div>
 
-            {/* Column 3: Socratic AI Mentor Chat (23%) */}
-            <div className="hidden lg:block lg:col-span-3 h-full min-h-0">
-              <MentorChat
-                messages={currentMessages}
-                onSendMessage={handleUserSendMessage}
-                onClearChat={handleClearChat}
-                isLoading={isAiLoading}
-                aiSettings={aiSettings}
-                currentTask={currentTask}
-                lastExecutionResult={executionResult}
-                onSelectHintLevel={handleSelectHintLevel}
-                activeHintLevel={activeHintLevel}
-                onOpenSettings={() => setIsSettingsOpen(true)}
-              />
-            </div>
+            {/* Drag Handle 2 (Center <-> Right) */}
+            {!isEditorMaximized && (
+              <div
+                onMouseDown={handleRightResizeStart}
+                className="hidden lg:flex w-1.5 hover:w-2 bg-slate-800 hover:bg-indigo-500 active:bg-indigo-600 cursor-col-resize transition-all items-center justify-center z-20 flex-shrink-0 group select-none"
+                title="Przeciągnij w lewo lub w prawo, aby dostosować proporcje edytora i mentora AI"
+              >
+                <div className="h-8 w-0.5 rounded-full bg-slate-600 group-hover:bg-white transition-colors" />
+              </div>
+            )}
+
+            {/* Column 3: Socratic AI Mentor Chat */}
+            {!isEditorMaximized && (
+              <div 
+                style={{ width: `${rightWidth}%` }}
+                className="hidden lg:flex flex-col h-full min-h-0 flex-shrink-0 border-l border-slate-800"
+              >
+                <MentorChat
+                  messages={currentMessages}
+                  onSendMessage={handleUserSendMessage}
+                  onClearChat={handleClearChat}
+                  isLoading={isAiLoading}
+                  aiSettings={aiSettings}
+                  currentTask={currentTask}
+                  lastExecutionResult={executionResult}
+                  onSelectHintLevel={handleSelectHintLevel}
+                  activeHintLevel={activeHintLevel}
+                  onOpenSettings={() => setIsSettingsOpen(true)}
+                />
+              </div>
+            )}
           </div>
         ) : (
-          /* 2-Column Split Layout */
-          <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
-            {/* Left Column (7 cols): Tabs for Task Desc & Code Editor */}
-            <div className="lg:col-span-7 h-full flex flex-col min-h-0 border-r border-slate-800">
+          /* 2-Column Resizable Layout */
+          <div className="w-full h-full flex overflow-hidden relative">
+            {/* Left Column: Tabs for Task Desc & Code Editor */}
+            <div 
+              style={{ width: `${100 - rightWidth}%` }}
+              className="flex-1 flex flex-col h-full min-h-0"
+            >
               {/* Tab Switcher */}
-              <div className="h-10 px-4 bg-slate-900 border-b border-slate-800 flex items-center gap-2">
-                <button
-                  onClick={() => setLeftTab('desc')}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                    leftTab === 'desc' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Opis Zadania & Formuły
-                </button>
-                <button
-                  onClick={() => setLeftTab('editor')}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                    leftTab === 'editor' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Edytor Kodu & Testy
-                </button>
+              <div className="h-10 px-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setLeftTab('desc')}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      leftTab === 'desc' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Opis Zadania & Formuły
+                  </button>
+                  <button
+                    onClick={() => setLeftTab('editor')}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      leftTab === 'editor' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Edytor Kodu & Testy
+                  </button>
+                </div>
               </div>
 
               {leftTab === 'desc' ? (
@@ -334,14 +479,28 @@ export default function App() {
                       isRunning={isRunning}
                       onAskMentorAboutError={(err) => handleUserSendMessage(`Dlaczego test nie przeszedł? ${err}`)}
                       onRequestHintLevel={handleSelectHintLevel}
+                      height={testPanelHeight}
+                      onResizeStart={handleVerticalResizeStart}
                     />
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Right Column (5 cols): Mentor AI Chat */}
-            <div className="lg:col-span-5 h-full min-h-0">
+            {/* Drag Handle (Left <-> Right) */}
+            <div
+              onMouseDown={handleRightResizeStart}
+              className="hidden lg:flex w-1.5 hover:w-2 bg-slate-800 hover:bg-indigo-500 active:bg-indigo-600 cursor-col-resize transition-all items-center justify-center z-20 flex-shrink-0 group select-none"
+              title="Przeciągnij w lewo lub w prawo, aby dostosować proporcje edytora i mentora"
+            >
+              <div className="h-8 w-0.5 rounded-full bg-slate-600 group-hover:bg-white transition-colors" />
+            </div>
+
+            {/* Right Column: Mentor AI Chat */}
+            <div 
+              style={{ width: `${rightWidth}%` }}
+              className="hidden lg:flex flex-col h-full min-h-0 flex-shrink-0 border-l border-slate-800"
+            >
               <MentorChat
                 messages={currentMessages}
                 onSendMessage={handleUserSendMessage}

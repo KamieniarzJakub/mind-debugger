@@ -9,7 +9,9 @@ import {
   Code2, 
   Zap, 
   Sparkles,
-  SlidersHorizontal 
+  SlidersHorizontal,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 
 // Configure Monaco to load entirely locally from /vs in public/ (0ms CDN delay!)
@@ -25,6 +27,8 @@ interface CodeEditorProps {
   onRun: () => void;
   onReset: () => void;
   isRunning: boolean;
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
 }
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -33,6 +37,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   onRun,
   onReset,
   isRunning,
+  isMaximized,
+  onToggleMaximize,
 }) => {
   const [copied, setCopied] = React.useState(false);
   const [useLiteEditor, setUseLiteEditor] = React.useState(false);
@@ -154,6 +160,21 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             <RotateCcw className="w-3.5 h-3.5" />
             <span className="text-[11px] hidden md:inline">Reset</span>
           </button>
+
+          {onToggleMaximize && (
+            <button
+              onClick={onToggleMaximize}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                isMaximized 
+                  ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50' 
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+              title={isMaximized ? 'Przywróć standardowy podział paneli' : 'Rozwiń edytor na całą szerokość (Focus Mode)'}
+            >
+              {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              <span className="text-[11px] hidden lg:inline">{isMaximized ? 'Zwiń' : 'Rozwiń'}</span>
+            </button>
+          )}
 
           <div className="h-4 w-px bg-slate-800 mx-1" />
 
