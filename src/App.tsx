@@ -230,6 +230,10 @@ export default function App() {
   ) => {
     setIsAiLoading(true);
 
+    if (hintLevel) {
+      setActiveHintLevel(hintLevel);
+    }
+
     const userMsg: ChatMessage | null = userQuery ? {
       id: `usr_${Date.now()}`,
       role: 'user',
@@ -245,21 +249,32 @@ export default function App() {
     }
 
     try {
-      const responseText = await aiService.getMentorResponse(
+      const targetHintLevel = hintLevel || activeHintLevel || undefined;
+      const history = chatPerTask[currentTask.id] || [];
+      const responseResult = await aiService.getMentorResponse(
         currentTask,
         currentCode,
         res,
         aiSettings,
         userQuery,
-        hintLevel
+        targetHintLevel,
+        undefined,
+        history
       );
+
+      // Dynamically sync activeHintLevel with the level returned by mentor
+      if (responseResult.hintLevel) {
+        setActiveHintLevel(responseResult.hintLevel);
+      }
 
       const assistantMsg: ChatMessage = {
         id: `ast_${Date.now()}`,
         role: 'assistant',
-        content: responseText,
+        content: responseResult.content,
         timestamp: Date.now(),
-        hintLevel
+        hintLevel: responseResult.hintLevel || targetHintLevel,
+        jailbreakBlocked: responseResult.jailbreakBlocked,
+        showModelSwitchPrompt: responseResult.showModelSwitchPrompt
       };
 
       setChatPerTask(prev => ({
@@ -271,7 +286,8 @@ export default function App() {
         id: `ast_err_${Date.now()}`,
         role: 'assistant',
         content: `⚠️ Wystąpił problem: ${err.message}. Zapoznaj się z podpowiedziami w opisie zadania lub sprawdź konfigurację mentora w ustawieniach.`,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        showModelSwitchPrompt: true
       };
       setChatPerTask(prev => ({
         ...prev,
@@ -283,7 +299,17 @@ export default function App() {
   };
 
   const handleUserSendMessage = (text: string) => {
-    triggerMentorAdvice(executionResult, text);
+    let explicitLevel: 1 | 2 | 3 | undefined = undefined;
+    const lower = text.toLowerCase();
+    if (lower.includes('poziom 1') || lower.includes('poziomu 1') || lower.includes('intuicj')) {
+      explicitLevel = 1;
+    } else if (lower.includes('poziom 2') || lower.includes('poziomu 2') || lower.includes('analiz') || lower.includes('przykład')) {
+      explicitLevel = 2;
+    } else if (lower.includes('poziom 3') || lower.includes('poziomu 3') || lower.includes('koncepcj')) {
+      explicitLevel = 3;
+    }
+
+    triggerMentorAdvice(executionResult, text, explicitLevel || activeHintLevel || undefined);
   };
 
   const handleSelectHintLevel = (level: 1 | 2 | 3) => {

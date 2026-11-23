@@ -69,4 +69,12 @@ export interface ChatMessage {
   hintLevel?: 1 | 2 | 3;
   isStreaming?: boolean;
   jailbreakBlocked?: boolean;
+  showModelSwitchPrompt?: boolean;
+}
+
+export interface MentorResponseResult {
+  content: string;
+  hintLevel?: 1 | 2 | 3;
+  jailbreakBlocked?: boolean;
+  showModelSwitchPrompt?: boolean;
 }

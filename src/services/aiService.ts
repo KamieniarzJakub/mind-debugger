@@ -1,4 +1,4 @@
-import { Task, ExecutionResult, AISettings, ChatMessage } from '../types';
+import { Task, ExecutionResult, AISettings, ChatMessage, MentorResponseResult } from '../types';
 
 export const SYSTEM_PROMPT = `Jesteś MindDebugger — cierpliwym, doświadczonym i sokratejskim mentorem programowania w Pythonie oraz uczenia maszynowego (Machine Learning).
 
@@ -122,19 +122,21 @@ ${task.referenceSolution}
   /**
    * Smart Offline Socratic Mentor:
    * Accurately adapts to hint levels (Level 1, Level 2, Level 3),
-   * includes direct markdown links to documentation, and never loops repetitively.
+   * includes direct markdown links to documentation, detects repetition and struggle,
+   * offers diverse concrete examples, and prompts to switch to full LLM models when needed.
    */
   public generateOfflineGuidance(
     task: Task,
     userCode: string,
     executionResult?: ExecutionResult | null,
     userQuery?: string,
-    hintLevel?: 1 | 2 | 3
-  ): string {
+    hintLevel?: 1 | 2 | 3,
+    history?: ChatMessage[]
+  ): MentorResponseResult {
     const query = (userQuery || '').toLowerCase();
     const errorText = ((executionResult?.rawError || '') + ' ' + (executionResult?.stderr || '')).toLowerCase();
 
-    // Determine target level (either explicitly requested or inferred from query)
+    // Determine target level (explicitly requested, inferred from query, or active level)
     let level: 1 | 2 | 3 = hintLevel || 1;
     if (query.includes('poziom 2') || query.includes('poziomu 2') || query.includes('analiz') || query.includes('konkretn')) {
       level = 2;
@@ -145,204 +147,191 @@ ${task.referenceSolution}
     }
 
     // 1. Jailbreak attempt handling
-    if (/napisz\s+mi|daj\s+mi\s+kod|całe\s+rozwiązanie|zrób\s+za\s+mnie|gotowy\s+kod/i.test(query)) {
-      return `Rozumiem Twoją niecierpliwość, ale jako **Sokratejski Mentor** celowo nie podam gotowej linijki ani pełnego skryptu. Kiedy kopiujesz gotowy kod, omijasz najważniejszy etap uczenia się — zrozumienie dlaczego dana operacja działa!
-
-Zamiast tego zróbmy krok w tył:
-1. Spójrz na treść błędu w dolnym panelu asercji.
-2. Zastanów się, co dokładnie obliczasz w linijce z błędem w porównaniu do tego, czego oczekuje test.
-3. Wybierz jeden z poziomów podpowiedzi u góry czatu (**Poziom 1**, **Poziom 2** lub **Poziom 3**), aby otrzymać ukierunkowaną pomoc bez psucia procesu nauki!`;
+    if (/napisz\s+mi|daj\s+mi\s+kod|całe\s+rozwiązanie|zrób\s+za\s+mnie|gotowy\s+kod|napisz\s+całą\s+funkcję/i.test(query)) {
+      return {
+        content: `Rozumiem Twoją niecierpliwość, ale jako **Sokratejski Mentor** celowo nie podam gotowej linijki ani pełnego skryptu. Kiedy kopiujesz gotowy kod, omijasz najważniejszy etap uczenia się — zrozumienie dlaczego dana operacja działa!\n\nZamiast tego zróbmy krok w tył:\n1. Spójrz na treść błędu w dolnym panelu asercji.\n2. Zastanów się, co dokładnie obliczasz w linijce z błędem w porównaniu do tego, czego oczekuje test.\n3. Wybierz jeden z poziomów podpowiedzi u góry czatu (**Poziom 1**, **Poziom 2** lub **Poziom 3**), aby otrzymać ukierunkowaną pomoc bez psucia procesu nauki!`,
+        hintLevel: level,
+        jailbreakBlocked: true,
+        showModelSwitchPrompt: false
+      };
     }
 
     // 2. Success state
     if (executionResult && executionResult.success) {
-      return `🎉 **Doskonale! Wszystkie testy jednostkowe zakończyły się sukcesem!**
-
-Twój kod poprawnie obsłużył wszystkie przypadki brzegowe i zachował właściwe wymiary danych.
-W ramach utrwalenia wiedzy, pomyśl nad pytaniem:
-*Jaka jest złożoność obliczeniowa i pamięciowa zaimplementowanego przez Ciebie rozwiązania w notacji $\\mathcal{O}(\\dots)$ względem liczby próbek $N$ i cech $D$? Czy zauważasz jakieś operacje, które można by jeszcze zoptymalizować?*`;
+      return {
+        content: `🎉 **Doskonale! Wszystkie testy jednostkowe zakończyły się sukcesem!**\n\nTwój kod poprawnie obsłużył wszystkie przypadki brzegowe i zachował właściwe wymiary danych.\nW ramach utrwalenia wiedzy, pomyśl nad pytaniem:\n*Jaka jest złożoność obliczeniowa i pamięciowa zaimplementowanego przez Ciebie rozwiązania w notacji $\\mathcal{O}(\\dots)$ względem liczby próbek $N$ i cech $D$? Czy zauważasz jakieś operacje, które można by jeszcze zoptymalizować?*`,
+        showModelSwitchPrompt: false
+      };
     }
 
-    // 3. Task-specific Progressive Guidance
-    if (task.id === 'task-1') {
-      // Min-Max scaling
-      if (level === 1) {
-        return `🔵 **Poziom 1: Pytanie o intuicję matematyczną**
+    // 3. Check for specific question types:
+    const isExampleRequest = /(inny\s+)?przykład|pokaż\s+(na\s+)?liczbach|jak\s+to\s+wygląda|konkretny\s+przypadek|podaj\s+inny|pokaż\s+przykład/i.test(query);
+    const isAxisQuestion = (query.includes('axis=0') || query.includes('axis=1') || (query.includes('axis') && (query.includes('różni') || query.includes('kolumn') || query.includes('wiersz'))));
 
-Zastanów się nad strukturą danych $X \\in \\mathbb{R}^{N \\times D}$, gdzie $N$ to liczba próbek (wiersze), a $D$ to liczba cech (kolumny).
-Gdy wywołujesz \`X.min()\` bez podania argumentu osi, co właściwie otrzymujesz? Czy szukamy jednej globalnej liczby dla całego zbioru, czy osobnego minimum dla każdej cechy z osobna?
+    let rawGuidance = '';
 
-👉 Pomyśl: wzdłuż której osi powinieneś agregować wiersze, aby zachować cechy?`;
+    if (isAxisQuestion) {
+      level = 2;
+      rawGuidance = `🧭 **Zrozumienie osi (\`axis\`) w tablicach 2D w NumPy:**
+
+Dla macierzy 2D o kształcie $(N, D)$ (gdzie $N$ to wiersze/próbki, a $D$ to kolumny/cechy):
+
+| Oś | Kierunek redukcji | Zastosowanie w ML |
+| :--- | :--- | :--- |
+| **\`axis=0\`** | **Wzdłuż wierszy (w dół)** | Oblicza statystykę (np. min, max, średnią) **dla każdej cechy (kolumny) z osobna**. Wynik ma $D$ elementów. |
+| **\`axis=1\`** | **Wzdłuż kolumn (w poprzek)** | Oblicza statystykę **dla każdej próbki (wiersza) z osobna**. Wynik ma $N$ elementów. |
+
+👉 **Intuicja:**
+Kiedy skalujesz dane (np. wiek i dochód), każda kolumna ma inne jednostki. Musisz zredukować wiersze w dół, aby otrzymać osobne minimum dla wieku i osobne dla dochodu — dlatego używamy **\`axis=0\`**!`;
+    } else if (isExampleRequest) {
+      level = 2;
+      if (task.id === 'task-1') {
+        rawGuidance = `📊 **Konkretny przykład liczbowy (Normalizacja Min-Max na macierzy $3 \\times 2$):**
+
+Wyobraź sobie prostą macierz danych $X$, gdzie wiersze to 3 osoby, a kolumny to [Wiek, Tętno]:
+$$X = \\begin{bmatrix} 20 & 60 \\\\ 30 & 80 \\\\ 40 & 100 \\end{bmatrix}$$
+
+1. **Wywołanie \`X.min()\` bez osi:**
+   Zwraca jedną liczbę \`20\` (skalar). Odjęcie \`X - 20\` odejmie 20 od wieku i 20 od tętna, co miesza różne skale!
+2. **Wywołanie \`X.min(axis=0)\` (redukcja w dół kolumn):**
+   - Minimum wieku: $\\min(20, 30, 40) = 20$
+   - Minimum tętna: $\\min(60, 80, 100) = 60$
+   Otrzymasz wektor \`[20, 60]\` — osobne minimum dla każdej cechy z osobna.
+3. **Dodanie \`keepdims=True\`:**
+   Kształt to \`(1, 2)\`. Dzięki **broadcastingowi** od każdego wiersza odejmowane jest odpowiednie minimum cechy:
+   - Wiersz 1: $[20-20, 60-60] = [0, 0]$
+   - Wiersz 2: $[30-20, 80-60] = [10, 20]$
+   - Wiersz 3: $[40-20, 100-60] = [20, 40]$
+   Po podzieleniu przez zakres kolumn, dane trafiają dokładnie w przedział $[0, 1]$.`;
+      } else if (task.id === 'task-2') {
+        rawGuidance = `📊 **Konkretny przykład wymiarów (Dense Layer):**
+
+Załóżmy wsad $B=2$ próbek o $D_{in}=3$ cechach, a warstwa wylicza $D_{out}=2$ neurony:
+- Macierz wejść: $X \\in \\mathbb{R}^{2 \\times 3}$
+- Macierz wag: $W \\in \\mathbb{R}^{3 \\times 2}$
+- Bias: $b \\in \\mathbb{R}^{1 \\times 2}$
+
+1. **Błąd operatora \`*\`:**
+   Mnożenie poelementowe wymaga identycznych kształtów lub zgodności broadcastingu. Próba \`X * W\` dla kształtów $(2, 3)$ i $(3, 2)$ natychmiast rzuca błąd \`shapes not aligned\`!
+2. **Poprawne mnożenie macierzowe \`@\`:**
+   $(2 \\times \\mathbf{3}) @ (\\mathbf{3} \\times 2) \\rightarrow (2 \\times 2)$. Wymiar wewnętrzny $\\mathbf{3}$ się zgadza!
+3. **Dodanie wektora biasu:**
+   $(2 \\times 2) + (1 \\times 2) \\rightarrow (2 \\times 2)$ — NumPy automatycznie dodaje bias do każdego wiersza.`;
+      } else if (task.id === 'task-3') {
+        rawGuidance = `📊 **Konkretny przykład stabilności softmax:**
+
+Załóżmy wektor logitów dla jednej próbki:
+$$z = [1000.0, 1001.0, 1002.0]$$
+
+1. **Dlaczego zwykły softmax zawodzi?**
+   $e^{1000.0}$ przekracza zakres formatu float64 (max $\\approx 1.8 \\times 10^{308}$) i zwraca \`inf\`. Dzielenie $\\frac{inf}{inf}$ daje \`NaN\`.
+2. **Trik stabilności ($C = \\max(z) = 1002.0$):**
+   Odejmujemy maksimum:
+   $$z - 1002.0 = [-2.0, -1.0, 0.0]$$
+3. **Bezpieczne potęgi:**
+   - $e^{-2.0} \\approx 0.135$
+   - $e^{-1.0} \\approx 0.368$
+   - $e^{0.0} = 1.0$ (największa wartość to dokładnie 1.0, brak ryzyka overflow!)
+   Suma wynosi $1.503$. Prawdopodobieństwa są poprawne: $[0.09, 0.24, 0.67]$.`;
+      } else if (task.id === 'task-4') {
+        rawGuidance = `📊 **Konkretny przykład wycieku danych (Data Leakage):**
+
+Wyobraź sobie 4 próbki z cechą dochodu:
+- Zbiór treningowy: $[2000, 3000, 4000]$ (rzeczywista średnia treningowa: 3000)
+- Zbiór testowy: $[10000]$ (wartość wysoka)
+
+1. **Błąd: Skalowanie przed podziałem:**
+   Średnia ze wszystkich 4 próbek wynosi: $\\frac{2000+3000+4000+10000}{4} = 4750$.
+   Dane treningowe zostaną znormalizowane przy użyciu średniej 4750, co oznacza, że model 'widzi' informację ze zbioru testowego przed ewaluacją!
+2. **Poprawne rozwiązanie (Pipeline):**
+   Skaler uczy się parametrów $(\\mu=3000)$ wyłącznie na danych treningowych: \`pipeline.fit(X_train, y_train)\`. Podczas testu (\`predict(X_test)\`) stosuje tę samą średnią 3000.`;
+      } else {
+        rawGuidance = `📊 **Konkretny przykład kroku Gradient Descent:**
+
+Załóżmy wagę $w = 4.0$, współczynnik uczenia $\\alpha = 0.1$.
+Funkcja straty: $J(w) = w^2$.
+Pochodna: $\\frac{\\partial J}{\\partial w} = 2w = 8.0$ (wartość dodatnia).
+
+1. Wartość dodatnia oznacza, że idąc w prawo w stronę większych wag błąd rośnie.
+2. Aby zminimalizować błąd, musimy iść w przeciwną stronę (odjąć gradient!):
+   $$w_{new} = w - \\alpha \\cdot \\frac{\\partial J}{\\partial w} = 4.0 - 0.1 \\cdot 8.0 = 3.2$$
+Błąd spadł z $16.0$ do $10.24$!`;
       }
-
-      if (level === 2) {
-        return `🟡 **Poziom 2: Analiza kodu & konkretna oś**
-
-W Twoim kodzie w liniach:
-\`x_min = X.min()\` oraz \`x_max = X.max()\`
-funkcja redukuje całą macierz do pojedynczego skalara.
-
-Aby obliczyć minimum i maksimum niezależnie dla każdej kolumny, musisz przekazać parametr **\`axis=0\`** (redukcja wzdłuż wierszy).
-Dodatkowo, warto dodać parametr **\`keepdims=True\`**, aby wynik miał kształt \`(1, D)\`, co zapewnia poprawny broadcasting.
-
-🔗 **Dokumentacja biblioteki NumPy:**
-- [NumPy np.amin / np.min — oficjalna dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.amin.html)
-- [NumPy np.amax / np.max — oficjalna dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.amax.html)`;
-      }
-
-      if (level === 3) {
-        return `🔴 **Poziom 3: Koncepcja algorytmiczna & zabezpieczenie przed NaN**
-
-W tym zadaniu kluczowe są dwa mechanizmy:
-
-1. **Broadcasting kształtów:** Gdy macierz $X$ ma kształt $(N, D)$, a $X_{min}$ ma kształt $(1, D)$, operacja $(X - X_{min})$ rozszerza wirtualnie wektor $(1, D)$ na każdy z $N$ wierszy.
-   🔗 Zobacz: [NumPy Broadcasting — oficjalny podręcznik](https://numpy.org/doc/stable/user/basics.broadcasting.html)
-
-2. **Dzielenie przez zero (stała kolumna):** Gdy dla pewnej cechy $X_{max} == X_{min}$, mianownik wynosi zero, co prowadzi do $0/0 \\rightarrow \\text{NaN}$.
-   Aby temu zapobiec, użyj funkcji [np.where](https://numpy.org/doc/stable/reference/generated/numpy.where.html), aby w mianowniku zastąpić $0$ wartością $1.0$, a w wynikowej macierzy dla stałych kolumn przypisać $min\\_val$.`;
-      }
-    }
-
-    if (task.id === 'task-2') {
-      // Dense Layer
-      if (level === 1) {
-        return `🔵 **Poziom 1: Pytanie o intuicję iloczynu macierzowego**
-
-Spójrz na zgłoszony błąd wymiarów.
-W algebrze liniowej, aby pomnożyć dwie macierze $A \\times B$, ile kolumn musi mieć macierz $A$ w relacji do wierszy macierzy $B$?
-Czy w algebrze liniowej wymiar wewnętrzny mnożenia może być różny?`;
-      }
-
-      if (level === 2) {
-        return `🟡 **Poziom 2: Analiza kodu & operatorów**
-
-W metodzie \`forward\` Twojego kodu używasz operatora \`*\`:
-\`Z = X * self.W + self.b\`
-
-W Pythonie operator \`*\` to mnożenie poelementowe (Hadamarda), które nie realizuje operacji warstwy liniowej!
-Do iloczynu macierzowego służy operator **\`@\`** (lub \`np.matmul\`).
-Ponadto sprawdź wymiary \`self.W\`: aby pomnożyć $X \\in \\mathbb{R}^{B \\times in}$ z $W$, macierz wag musi mieć kształt $(in, out)$, a nie $(out, in)$!
-
-🔗 **Dokumentacja biblioteki NumPy:**
-- [NumPy np.matmul / operator @ — dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html)
-- [NumPy np.dot — dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.dot.html)`;
-      }
-
-      if (level === 3) {
-        return `🔴 **Poziom 3: Koncepcja algorytmiczna warstwy liniowej**
-
-1. **Transformacja afiniczna:** Warstwa liniowa odwzorowuje przestrzeń $\\mathbb{R}^{in}$ w $\\mathbb{R}^{out}$ zgodnie ze wzorem $Z = X @ W + b$.
-2. **Spójność wymiarów:** $(B \\times in\\_features) @ (in\\_features \\times out\\_features) \\rightarrow (B \\times out\\_features)$.
-3. **Broadcasting biasu:** Wektor obciążeń $b \\in \\mathbb{R}^{1 \\times out}$ jest automatycznie dodawany do każdego z $B$ wierszy macierzy aktywacji.
-   🔗 Zobacz: [NumPy Broadcasting Guide](https://numpy.org/doc/stable/user/basics.broadcasting.html)`;
-      }
-    }
-
-    if (task.id === 'task-3') {
-      // Softmax
-      if (level === 1) {
-        return `🔵 **Poziom 1: Pytanie o stabilność numeryczną**
-
-Dlaczego funkcja wykładnicza $e^x$ jest niebezpieczna w komputerowej arytmetyce zmiennoprzecinkowej IEEE 754 dla liczb takich jak $x = 1000$?
-Co zwraca \`np.exp(1000)\`, a co daje dzielenie $\\frac{\\infty}{\\infty}$?`;
-      }
-
-      if (level === 2) {
-        return `🟡 **Poziom 2: Analiza kodu & wymiarów keepdims**
-
-W Twojej funkcji softmax podczas liczenia \`np.max(logits, axis=axis)\` tablica traci redukowany wymiar!
-Dla macierzy 2D o kształcie $(B, C)$ operacja bez zachowania wymiaru zwraca wektor 1D $(B,)$, którego nie można poprawnie odjąć ani podzielić po osi kolumn.
-Dodaj parametr **\`keepdims=True\`** do wywołań \`np.max()\` oraz \`np.sum()\`.
-
-🔗 **Dokumentacja biblioteki NumPy:**
-- [NumPy np.exp — oficjalna dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.exp.html)
-- [NumPy np.max (parametr keepdims) — dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.amax.html)`;
-      }
-
-      if (level === 3) {
-        return `🔴 **Poziom 3: Matematyczny trik Log-Sum-Exp**
-
-Matematyczna tożsamość softmaxu pozwala odjąć dowolną stałą $C$ od logitów:
-$$\\sigma(z)_i = \\frac{e^{z_i - C}}{\\sum_j e^{z_j - C}}$$
-Wybierając $C = \\max(z)$, największy wykładnik w potędze wynosi $e^0 = 1.0$. W ten sposób żaden składnik sumy nie przekroczy $1.0$, co całkowicie eliminuje błąd przepełnienia (*overflow*) i wartości \`NaN\`!
-🔗 Zobacz: [SciPy scipy.special.logsumexp](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.logsumexp.html)`;
-      }
-    }
-
-    if (task.id === 'task-4') {
-      // Scikit-Learn Pipeline
-      if (level === 1) {
-        return `🔵 **Poziom 1: Pytanie o pojęcie wycieku danych**
-
-Czym jest wyciek danych (*Data Leakage*) w uczeniu maszynowym?
-Czy zbiór testowy w momencie budowania i trenowania skalera powinien być dla modelu całkowicie 'niewidzialny'? Co się stanie, jeśli skaler pozna średnią ze zbioru testowego?`;
-      }
-
-      if (level === 2) {
-        return `🟡 **Poziom 2: Analiza potoku Scikit-Learn**
-
-W kodzie startowym wywołano \`scaler.fit_transform(X)\` na CAŁOŚCI danych PRZED podziałem \`train_test_split\`.
-Aby to naprawić:
-1. Najpierw wywołaj \`train_test_split(X, y, test_size=0.25, random_state=42)\`.
-2. Zbuduj obiekt \`Pipeline([('scaler', StandardScaler()), ('classifier', LogisticRegression(...))])\`.
-3. Dopasuj potok wyłącznie na danych treningowych: \`pipeline.fit(X_train, y_train)\`.
-
-🔗 **Dokumentacja biblioteki Scikit-Learn:**
-- [Scikit-Learn Pipeline — oficjalna dokumentacja](https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html)
-- [Scikit-Learn train_test_split — dokumentacja](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html)
-- [Scikit-Learn Common Pitfalls: Data Leakage](https://scikit-learn.org/stable/common_pitfalls.html#data-leakage)`;
-      }
-
-      if (level === 3) {
-        return `🔴 **Poziom 3: Architektura zapobiegania wyciekom danych**
-
-Metoda \`StandardScaler.fit()\` oblicza wektor średnich $\\mu$ i odchyleń $\\sigma$.
-Jeśli obliczysz je przed podziałem na train/test, informacje ze zbioru testowego 'wyciekną' do normalizacji danych treningowych, sztucznie zawyżając metryki ewaluacji.
-Potok \`Pipeline\` gwarantuje, że metoda \`predict(X_test)\` zastosuje do danych testowych parametry $\\mu$ i $\\sigma$ nauczone wyłącznie na zbiorze $X_{train}$.`;
-      }
-    }
-
-    if (task.id === 'task-5') {
-      // Gradient Descent
-      if (level === 1) {
-        return `🔵 **Poziom 1: Pytanie o kierunek spadku wzdłuż gradientu**
-
-W którą stronę wskazuje wektor gradientu funkcji straty: w stronę najszybszego wzrostu błędu, czy w stronę najszybszego spadku?
-Jeśli chcemy zminimalizować błąd (Gradient Descent), czy powinniśmy dodawać gradient, czy go odejmować?`;
-      }
-
-      if (level === 2) {
-        return `🟡 **Poziom 2: Analiza kodu & znaków aktualizacji**
-
-W Twoim kodzie w liniach:
-\`new_w = w + learning_rate * dw\`
-użyto znaku plus. Zmień znak na **minus**: \`new_w = w - learning_rate * dw\`.
-Ponadto upewnij się, że gradienty są znormalizowane przez liczbę próbek: \`dw = (X.T @ error) / N\` oraz \`db = np.sum(error) / N\`.
-
-🔗 **Dokumentacja biblioteki NumPy:**
-- [NumPy np.transpose / właściwość .T](https://numpy.org/doc/stable/reference/generated/numpy.ndarray.T.html)
-- [NumPy np.mean — obliczanie MSE](https://numpy.org/doc/stable/reference/generated/numpy.mean.html)`;
-      }
-
-      if (level === 3) {
-        return `🔴 **Poziom 3: Matematyczne wyprowadzenie gradientu MSE**
-
-Dla funkcji straty MSE $J(w, b) = \\frac{1}{2N} \\sum (Xw + b - y)^2$:
-- Pochodna po wagach: $\\frac{\\partial J}{\\partial w} = \\frac{1}{N} X^T (\\hat{y} - y)$
-- Pochodna po biasie: $\\frac{\\partial J}{\\partial b} = \\frac{1}{N} \\sum (\\hat{y} - y)$
-Reguła aktualizacji parametrów w kierunku antygradientu:
-$$w \\leftarrow w - \\alpha \\cdot \\frac{\\partial J}{\\partial w}, \\quad b \\leftarrow b - \\alpha \\cdot \\frac{\\partial J}{\\partial b}$$`;
+    } else {
+      // Standard 3-level progressive guidance
+      if (task.id === 'task-1') {
+        if (level === 1) {
+          rawGuidance = `🔵 **Poziom 1: Pytanie o intuicję matematyczną**\n\nZastanów się nad strukturą danych $X \\in \\mathbb{R}^{N \\times D}$, gdzie $N$ to liczba próbek (wiersze), a $D$ to liczba cech (kolumny).\nGdy wywołujesz \`X.min()\` bez podania argumentu osi, co właściwie otrzymujesz? Czy szukamy jednej globalnej liczby dla całego zbioru, czy osobnego minimum dla każdej cechy z osobna?\n\n👉 Pomyśl: wzdłuż której osi powinieneś agregować wiersze, aby zachować cechy?`;
+        } else if (level === 2) {
+          rawGuidance = `🟡 **Poziom 2: Analiza kodu & konkretna oś**\n\nW Twoim kodzie w liniach:\n\`x_min = X.min()\` oraz \`x_max = X.max()\`\nfunkcja redukuje całą macierz do pojedynczego skalara.\n\nAby obliczyć minimum i maksimum niezależnie dla każdej kolumny, musisz przekazać parametr **\`axis=0\`** (redukcja wzdłuż wierszy).\nDodatkowo, warto dodać parametr **\`keepdims=True\`**, aby wynik miał kształt \`(1, D)\`, co zapewnia poprawny broadcasting.\n\n🔗 **Dokumentacja biblioteki NumPy:**\n- [NumPy np.amin / np.min — oficjalna dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.amin.html)\n- [NumPy np.amax / np.max — oficjalna dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.amax.html)`;
+        } else {
+          rawGuidance = `🔴 **Poziom 3: Koncepcja algorytmiczna & zabezpieczenie przed NaN**\n\nW tym zadaniu kluczowe są dwa mechanizmy:\n\n1. **Broadcasting kształtów:** Gdy macierz $X$ ma kształt $(N, D)$, a $X_{min}$ ma kształt $(1, D)$, operacja $(X - X_{min})$ rozszerza wirtualnie wektor $(1, D)$ na każdy z $N$ wierszy.\n   🔗 Zobacz: [NumPy Broadcasting — oficjalny podręcznik](https://numpy.org/doc/stable/user/basics.broadcasting.html)\n\n2. **Dzielenie przez zero (stała kolumna):** Gdy dla pewnej cechy $X_{max} == X_{min}$, mianownik wynosi zero, co prowadzi do $0/0 \\rightarrow \\text{NaN}$.\n   Aby temu zapobiec, użyj funkcji [np.where](https://numpy.org/doc/stable/reference/generated/numpy.where.html), aby w mianowniku zastąpić $0$ wartością $1.0$, a w wynikowej macierzy dla stałych kolumn przypisać $min\\_val$.`;
+        }
+      } else if (task.id === 'task-2') {
+        if (level === 1) {
+          rawGuidance = `🔵 **Poziom 1: Pytanie o intuicję iloczynu macierzowego**\n\nSpójrz na zgłoszony błąd wymiarów.\nW algebrze liniowej, aby pomnożyć dwie macierze $A \\times B$, ile kolumn musi mieć macierz $A$ w relacji do wierszy macierzy $B$?\nCzy w algebrze liniowej wymiar wewnętrzny mnożenia może być różny?`;
+        } else if (level === 2) {
+          rawGuidance = `🟡 **Poziom 2: Analiza kodu & operatorów**\n\nW metodzie \`forward\` Twojego kodu używasz operatora \`*\`:\n\`Z = X * self.W + self.b\`\n\nW Pythonie operator \`*\` to mnożenie poelementowe (Hadamarda), które nie realizuje operacji warstwy liniowej!\nDo iloczynu macierzowego służy operator **\`@\`** (lub \`np.matmul\`).\nPonadto sprawdź wymiary \`self.W\`: aby pomnożyć $X \\in \\mathbb{R}^{B \\times in}$ z $W$, macierz wag musi mieć kształt $(in, out)$, a nie $(out, in)$!\n\n🔗 **Dokumentacja biblioteki NumPy:**\n- [NumPy np.matmul / operator @ — dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html)\n- [NumPy np.dot — dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.dot.html)`;
+        } else {
+          rawGuidance = `🔴 **Poziom 3: Koncepcja algorytmiczna warstwy liniowej**\n\n1. **Transformacja afiniczna:** Warstwa liniowa odwzorowuje przestrzeń $\\mathbb{R}^{in}$ w $\\mathbb{R}^{out}$ zgodnie ze wzorem $Z = X @ W + b$.\n2. **Spójność wymiarów:** $(B \\times in\\_features) @ (in\\_features \\times out\\_features) \\rightarrow (B \\times out\\_features)$.\n3. **Broadcasting biasu:** Wektor obciążeń $b \\in \\mathbb{R}^{1 \\times out}$ jest automatycznie dodawany do każdego z $B$ wierszy macierzy aktywacji.\n   🔗 Zobacz: [NumPy Broadcasting Guide](https://numpy.org/doc/stable/user/basics.broadcasting.html)`;
+        }
+      } else if (task.id === 'task-3') {
+        if (level === 1) {
+          rawGuidance = `🔵 **Poziom 1: Pytanie o stabilność numeryczną**\n\nDlaczego funkcja wykładnicza $e^x$ jest niebezpieczna w komputerowej arytmetyce zmiennoprzecinkowej IEEE 754 dla liczb takich jak $x = 1000$?\nCo zwraca \`np.exp(1000)\`, a co daje dzielenie $\\frac{\\infty}{\\infty}$?`;
+        } else if (level === 2) {
+          rawGuidance = `🟡 **Poziom 2: Analiza kodu & wymiarów keepdims**\n\nW Twojej funkcji softmax podczas liczenia \`np.max(logits, axis=axis)\` tablica traci redukowany wymiar!\nDla macierzy 2D o kształcie $(B, C)$ operacja bez zachowania wymiaru zwraca wektor 1D $(B,)$, którego nie można poprawnie odjąć ani podzielić po osi kolumn.\nDodaj parametr **\`keepdims=True\`** do wywołań \`np.max()\` oraz \`np.sum()\`.\n\n🔗 **Dokumentacja biblioteki NumPy:**\n- [NumPy np.exp — oficjalna dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.exp.html)\n- [NumPy np.max (parametr keepdims) — dokumentacja](https://numpy.org/doc/stable/reference/generated/numpy.amax.html)`;
+        } else {
+          rawGuidance = `🔴 **Poziom 3: Matematyczny trik Log-Sum-Exp**\n\nMatematyczna tożsamość softmaxu pozwala odjąć dowolną stałą $C$ od logitów:\n$$\\sigma(z)_i = \\frac{e^{z_i - C}}{\\sum_j e^{z_j - C}}$$\nWybierając $C = \\max(z)$, największy wykładnik w potędze wynosi $e^0 = 1.0$. W ten sposób żaden składnik sumy nie przekroczy $1.0$, co całkowicie eliminuje błąd przepełnienia (*overflow*) i wartości \`NaN\`!\n🔗 Zobacz: [SciPy scipy.special.logsumexp](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.logsumexp.html)`;
+        }
+      } else if (task.id === 'task-4') {
+        if (level === 1) {
+          rawGuidance = `🔵 **Poziom 1: Pytanie o pojęcie wycieku danych**\n\nCzym jest wyciek danych (*Data Leakage*) w uczeniu maszynowym?\nCzy zbiór testowy w momencie budowania i trenowania skalera powinien być dla modelu całkowicie 'niewidzialny'? Co się stanie, jeśli skaler pozna średnią ze zbioru testowego?`;
+        } else if (level === 2) {
+          rawGuidance = `🟡 **Poziom 2: Analiza potoku Scikit-Learn**\n\nW kodzie startowym wywołano \`scaler.fit_transform(X)\` na CAŁOŚCI danych PRZED podziałem \`train_test_split\`.\nAby to naprawić:\n1. Najpierw wywołaj \`train_test_split(X, y, test_size=0.25, random_state=42)\`.\n2. Zbuduj obiekt \`Pipeline([('scaler', StandardScaler()), ('classifier', LogisticRegression(...))])\`.\n3. Dopasuj potok wyłącznie na danych treningowych: \`pipeline.fit(X_train, y_train)\`.\n\n🔗 **Dokumentacja biblioteki Scikit-Learn:**\n- [Scikit-Learn Pipeline — oficjalna dokumentacja](https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html)\n- [Scikit-Learn train_test_split — dokumentacja](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html)\n- [Scikit-Learn Common Pitfalls: Data Leakage](https://scikit-learn.org/stable/common_pitfalls.html#data-leakage)`;
+        } else {
+          rawGuidance = `🔴 **Poziom 3: Architektura zapobiegania wyciekom danych**\n\nMetoda \`StandardScaler.fit()\` oblicza wektor średnich $\\mu$ i odchyleń $\\sigma$.\nJeśli obliczysz je przed podziałem na train/test, informacje ze zbioru testowego 'wyciekną' do normalizacji danych treningowych, sztucznie zawyżając metryki ewaluacji.\nPotok \`Pipeline\` gwarantuje, że metoda \`predict(X_test)\` zastosuje do danych testowych parametry $\\mu$ i $\\sigma$ nauczone wyłącznie na zbiorze $X_{train}$.`;
+        }
+      } else if (task.id === 'task-5') {
+        if (level === 1) {
+          rawGuidance = `🔵 **Poziom 1: Pytanie o kierunek spadku wzdłuż gradientu**\n\nW którą stronę wskazuje wektor gradientu funkcji straty: w stronę najszybszego wzrostu błędu, czy w stronę najszybszego spadku?\nJeśli chcemy zminimalizować błąd (Gradient Descent), czy powinniśmy dodawać gradient, czy go odejmować?`;
+        } else if (level === 2) {
+          rawGuidance = `🟡 **Poziom 2: Analiza kodu & znaków aktualizacji**\n\nW Twoim kodzie w liniach:\n\`new_w = w + learning_rate * dw\`\nużyto znaku plus. Zmień znak na **minus**: \`new_w = w - learning_rate * dw\`.\nPonadto upewnij się, że gradienty są znormalizowane przez liczbę próbek: \`dw = (X.T @ error) / N\` oraz \`db = np.sum(error) / N\`.\n\n🔗 **Dokumentacja biblioteki NumPy:**\n- [NumPy np.transpose / właściwość .T](https://numpy.org/doc/stable/reference/generated/numpy.ndarray.T.html)\n- [NumPy np.mean — obliczanie MSE](https://numpy.org/doc/stable/reference/generated/numpy.mean.html)`;
+        } else {
+          rawGuidance = `🔴 **Poziom 3: Matematyczne wyprowadzenie gradientu MSE**\n\nDla funkcji straty MSE $J(w, b) = \\frac{1}{2N} \\sum (Xw + b - y)^2$:\n- Pochodna po wagach: $\\frac{\\partial J}{\\partial w} = \\frac{1}{N} X^T (\\hat{y} - y)$\n- Pochodna po biasie: $\\frac{\\partial J}{\\partial b} = \\frac{1}{N} \\sum (\\hat{y} - y)$\nReguła aktualizacji parametrów w kierunku antygradientu:\n$$w \\leftarrow w - \\alpha \\cdot \\frac{\\partial J}{\\partial w}, \\quad b \\leftarrow b - \\alpha \\cdot \\frac{\\partial J}{\\partial b}$$`;
+        }
+      } else {
+        rawGuidance = `Zauważyłem problem w teście jednostkowym:\n\`${executionResult?.rawError || 'Niezgodność asercji'}\`\n\n🤔 **Pytanie naprowadzające:**\n1. Sprawdź oczekiwane wartości i wymiary w dolnym panelu asercji.\n2. Zastanów się, w której linijce kodu powstaje ta różnica.\n3. Wybierz jeden z poziomów podpowiedzi (1. Pytanie, 2. Analiza, 3. Koncepcja) w nagłówku czatu!`;
       }
     }
 
-    // Generic fallback for any other case
-    return `Zauważyłem problem w teście jednostkowym:
-\`${executionResult?.rawError || 'Niezgodność asercji'}\`
+    // 4. Repetition & Struggle Detection:
+    const assistantHistory = (history || []).filter(m => m.role === 'assistant');
+    const userHistory = (history || []).filter(m => m.role === 'user');
+    
+    // Check if user has already received this guidance or has asked multiple questions in offline mode
+    const isRepeatedQuery = userHistory.length >= 2;
+    const isStuck = /(nie\s+rozumiem|nadal|jak\s+to|dalej\s+błąd|nie\s+działa|pomóż|nie\s+wiem|dokładniej|dokładniejsz|inny\s+przykład)/i.test(query);
+    const hasPriorAssistantMsg = assistantHistory.length >= 1;
+    
+    const lastAssistantText = assistantHistory[assistantHistory.length - 1]?.content || '';
+    const isRepetition = lastAssistantText.length > 40 && (
+      rawGuidance.includes(lastAssistantText.slice(0, 60)) ||
+      lastAssistantText.includes(rawGuidance.slice(0, 60))
+    );
 
-🤔 **Pytanie naprowadzające:**
-1. Sprawdź oczekiwane wartości i wymiary w dolnym panelu asercji.
-2. Zastanów się, w której linijce kodu powstaje ta różnica.
-3. Wybierz jeden z poziomów podpowiedzi (1. Pytanie, 2. Analiza, 3. Koncepcja) w nagłówku czatu!`;
+    const showModelSwitchPrompt = isRepetition || (isStuck && hasPriorAssistantMsg) || isRepeatedQuery;
+
+    let finalContent = rawGuidance;
+    if (showModelSwitchPrompt) {
+      finalContent += `\n\n---\n💡 **Potrzebujesz dokładniejszej podpowiedzi lub elastycznego dialogu?**\nWbudowany model regułowy offline operuje na schematycznych szablonach i przy kolejnych pytaniach może powtarzać te same reguły. Aby prowadzić swobodną rozmowę, zadawać pytania o dowolną linijkę kodu i analizować nietypowe przypadki — **wybierz inny model AI** (np. darmowy lokalny model **Ollama** uruchomiony na Twoim komputerze lub zewnętrzne API Google Gemini / OpenAI w Ustawieniach).`;
+    }
+
+    return {
+      content: finalContent,
+      hintLevel: level,
+      jailbreakBlocked: false,
+      showModelSwitchPrompt
+    };
   }
 
   /**
@@ -355,23 +344,24 @@ $$w \\leftarrow w - \\alpha \\cdot \\frac{\\partial J}{\\partial w}, \\quad b \\
     settings: AISettings,
     userQuery?: string,
     hintLevel?: 1 | 2 | 3,
-    onToken?: (token: string) => void
-  ): Promise<string> {
+    onToken?: (token: string) => void,
+    history?: ChatMessage[]
+  ): Promise<MentorResponseResult> {
     const contextPrompt = this.buildContext(task, userCode, executionResult, userQuery, hintLevel);
 
     // 1. Offline Mode
     if (settings.provider === 'offline' || (!settings.apiKey && settings.provider !== 'ollama')) {
-      const guidance = this.generateOfflineGuidance(task, userCode, executionResult, userQuery, hintLevel);
+      const result = this.generateOfflineGuidance(task, userCode, executionResult, userQuery, hintLevel, history);
       
       // Simulate responsive typing effect for great UX
       if (onToken) {
-        const words = guidance.split(' ');
+        const words = result.content.split(' ');
         for (const word of words) {
           onToken(word + ' ');
-          await new Promise(r => setTimeout(r, 14));
+          await new Promise(r => setTimeout(r, 12));
         }
       }
-      return guidance;
+      return result;
     }
 
     // 2. Ollama Local API
@@ -416,15 +406,32 @@ $$w \\leftarrow w - \\alpha \\cdot \\frac{\\partial J}{\\partial w}, \\quad b \\
               } catch {}
             }
           }
-          return this.sanitizeMentorResponse(fullText, userQuery || '').content;
+          const sanitized = this.sanitizeMentorResponse(fullText, userQuery || '');
+          return {
+            content: sanitized.content,
+            hintLevel,
+            jailbreakBlocked: sanitized.jailbreakBlocked,
+            showModelSwitchPrompt: false
+          };
         } else {
           const data = await response.json();
-          return this.sanitizeMentorResponse(data.response || '', userQuery || '').content;
+          const sanitized = this.sanitizeMentorResponse(data.response || '', userQuery || '');
+          return {
+            content: sanitized.content,
+            hintLevel,
+            jailbreakBlocked: sanitized.jailbreakBlocked,
+            showModelSwitchPrompt: false
+          };
         }
       } catch (err: any) {
         console.warn('Ollama unavailable, falling back to smart offline mentor:', err);
-        return `⚠️ *Nie udało się połączyć z lokalnym modelem Ollama (${err.message}). Uruchamiam wbudowanego mentora sokratejskiego offline:*\n\n` + 
-          this.generateOfflineGuidance(task, userCode, executionResult, userQuery, hintLevel);
+        const offlineResult = this.generateOfflineGuidance(task, userCode, executionResult, userQuery, hintLevel, history);
+        return {
+          content: `⚠️ *Nie udało się połączyć z lokalnym modelem Ollama (${err.message}). Uruchamiam wbudowanego mentora sokratejskiego offline:*\n\n` + offlineResult.content,
+          hintLevel: offlineResult.hintLevel,
+          jailbreakBlocked: false,
+          showModelSwitchPrompt: true
+        };
       }
     }
 
@@ -469,11 +476,21 @@ $$w \\leftarrow w - \\alpha \\cdot \\frac{\\partial J}{\\partial w}, \\quad b \\
             await new Promise(r => setTimeout(r, 15));
           }
         }
-        return sanitized.content;
+        return {
+          content: sanitized.content,
+          hintLevel,
+          jailbreakBlocked: sanitized.jailbreakBlocked,
+          showModelSwitchPrompt: false
+        };
       } catch (err: any) {
         console.warn('Gemini API error, falling back:', err);
-        return `⚠️ *Błąd połączenia z Gemini API (${err.message}). Przełączono na wbudowanego mentora offline:*\n\n` + 
-          this.generateOfflineGuidance(task, userCode, executionResult, userQuery, hintLevel);
+        const offlineResult = this.generateOfflineGuidance(task, userCode, executionResult, userQuery, hintLevel, history);
+        return {
+          content: `⚠️ *Błąd połączenia z Gemini API (${err.message}). Przełączono na wbudowanego mentora offline:*\n\n` + offlineResult.content,
+          hintLevel: offlineResult.hintLevel,
+          jailbreakBlocked: false,
+          showModelSwitchPrompt: true
+        };
       }
     }
 
@@ -520,16 +537,26 @@ $$w \\leftarrow w - \\alpha \\cdot \\frac{\\partial J}{\\partial w}, \\quad b \\
             await new Promise(r => setTimeout(r, 15));
           }
         }
-        return sanitized.content;
+        return {
+          content: sanitized.content,
+          hintLevel,
+          jailbreakBlocked: sanitized.jailbreakBlocked,
+          showModelSwitchPrompt: false
+        };
       } catch (err: any) {
         console.warn('OpenAI/Groq error:', err);
-        return `⚠️ *Błąd połączenia z API (${err.message}). Przełączono na wbudowanego mentora offline:*\n\n` + 
-          this.generateOfflineGuidance(task, userCode, executionResult, userQuery, hintLevel);
+        const offlineResult = this.generateOfflineGuidance(task, userCode, executionResult, userQuery, hintLevel, history);
+        return {
+          content: `⚠️ *Błąd połączenia z API (${err.message}). Przełączono na wbudowanego mentora offline:*\n\n` + offlineResult.content,
+          hintLevel: offlineResult.hintLevel,
+          jailbreakBlocked: false,
+          showModelSwitchPrompt: true
+        };
       }
     }
 
     // Default fallback
-    return this.generateOfflineGuidance(task, userCode, executionResult, userQuery, hintLevel);
+    return this.generateOfflineGuidance(task, userCode, executionResult, userQuery, hintLevel, history);
   }
 }
 

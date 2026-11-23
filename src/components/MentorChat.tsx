@@ -112,37 +112,39 @@ export const MentorChat: React.FC<MentorChatProps> = ({
       case 'task-1':
         return [
           'Dlaczego axis=0 liczy statystyki kolumn, a nie wierszy?',
+          'Podaj konkretny przykład liczbowy (macierz 3x2)',
           'Jak zabezpieczyć kod przed dzieleniem przez zero?',
           'Czym różni się broadcasting wektora 1D od macierzy (1, D)?'
         ];
       case 'task-2':
         return [
           'Dlaczego iloczyn macierzy rzuca "shapes not aligned"?',
+          'Podaj konkretny przykład wymiarów X, W i b',
           'Jaka jest różnica między operatorem * a @ w NumPy?',
           'Czy powinienem transponować macierz wag W?'
         ];
       case 'task-3':
         return [
           'Dlaczego funkcja exp() daje błąd overflow dla dużych logitów?',
-          'Do czego służy parametr keepdims=True w np.max()?',
-          'Jak działa przesunięcie logitów z - max(z)?'
+          'Pokaż na liczbach, jak działa trik z - max(z)',
+          'Do czego służy parametr keepdims=True w np.max()?'
         ];
       case 'task-4':
         return [
+          'Pokaż konkretny przykład, jak dochodzi do wycieku danych',
           'Czym różni się fit_transform() od transform()?',
-          'Dlaczego skalowanie przed train_test_split to wyciek danych?',
           'Jak poprawnie skonfigurować Pipeline w scikit-learn?'
         ];
       case 'task-5':
         return [
-          'Dlaczego przy minimalizacji błędu odejmujemy gradient?',
+          'Pokaż na liczbach, dlaczego przy minimalizacji odejmujemy gradient',
           'Dlaczego musimy podzielić sumę gradientów przez N?',
           'Jak poprawnie wymnożyć X.T z wektorem błędu e?'
         ];
       default:
         return [
           'Gdzie w moim kodzie gubię wymiary?',
-          'Wyjaśnij intuicję matematyczną tego błędu',
+          'Podaj konkretny przykład liczbowy',
           'Zadaj mi pytanie naprowadzające'
         ];
     }
@@ -195,13 +197,14 @@ export const MentorChat: React.FC<MentorChatProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={onOpenSettings}
-              className="p-1 rounded text-slate-400 hover:text-indigo-300 hover:bg-slate-800 transition-colors"
-              title="Zmień model AI lub skonfiguruj API"
+              className="px-2 py-1 rounded-md text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-800/60 flex items-center gap-1 transition-colors"
+              title="Zmień model AI lub skonfiguruj API (Ollama, Gemini, OpenAI)"
             >
-              <Settings className="w-3.5 h-3.5" />
+              <Settings className="w-3 h-3 text-indigo-400" />
+              <span>Zmień model</span>
             </button>
             {messages.length > 0 && (
               <button
@@ -394,6 +397,30 @@ export const MentorChat: React.FC<MentorChatProps> = ({
                       {msg.content}
                     </ReactMarkdown>
                   </article>
+                )}
+
+                {msg.role === 'assistant' && msg.showModelSwitchPrompt && (
+                  <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-indigo-950/80 via-slate-950 to-purple-950/80 border border-indigo-500/40 text-slate-200 shadow-md">
+                    <div className="flex items-center gap-2 text-indigo-300 font-semibold text-xs mb-1.5">
+                      <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse flex-shrink-0" />
+                      <span>Potrzebujesz dokładniejszej podpowiedzi lub elastycznego dialogu?</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 leading-relaxed mb-2.5">
+                      Wbudowany model regułowy offline operuje na stałych szablonach zadań. Aby swobodnie porozmawiać o swoim kodzie, zadawać dowolne pytania uzupełniające i analizować trudne przypadki — <strong>aktywuj model LLM</strong>.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={onOpenSettings}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold text-xs transition-colors shadow-sm cursor-pointer"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                        <span>Skonfiguruj model AI w Ustawieniach</span>
+                      </button>
+                      <span className="text-[10px] text-slate-400">
+                        (Darmowy lokalny Ollama, Google Gemini lub OpenAI)
+                      </span>
+                    </div>
+                  </div>
                 )}
 
                 <div className="mt-1.5 flex justify-end items-center gap-1 text-[10px] opacity-40 font-mono">
