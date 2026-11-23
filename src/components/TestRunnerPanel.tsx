@@ -18,12 +18,14 @@ interface TestRunnerPanelProps {
   result: ExecutionResult | null;
   isRunning: boolean;
   onAskMentorAboutError?: (errorDetails: string) => void;
+  onRequestHintLevel?: (level: 1 | 2 | 3) => void;
 }
 
 export const TestRunnerPanel: React.FC<TestRunnerPanelProps> = ({
   result,
   isRunning,
   onAskMentorAboutError,
+  onRequestHintLevel,
 }) => {
   const [activeTab, setActiveTab] = React.useState<'tests' | 'console'>('tests');
   const [isCollapsed, setIsCollapsed] = React.useState(false);
@@ -166,15 +168,40 @@ export const TestRunnerPanel: React.FC<TestRunnerPanelProps> = ({
                     <div className="mt-2 p-2 rounded bg-slate-950/80 border border-rose-900/40 text-[11px] text-rose-300/90 whitespace-pre-wrap overflow-x-auto">
                       <div className="flex items-center justify-between mb-1 pb-1 border-b border-rose-900/30">
                         <span className="text-[10px] text-rose-400 font-bold uppercase">Komunikat asercji</span>
-                        {onAskMentorAboutError && (
-                          <button
-                            onClick={() => onAskMentorAboutError(`Dlaczego ten test nie przeszedł? Błąd: ${test.error}`)}
-                            className="inline-flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 underline"
-                          >
-                            <Sparkles className="w-2.5 h-2.5" />
-                            Zapytaj Mentora AI
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {onRequestHintLevel && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-slate-400">Podpowiedź:</span>
+                              <button
+                                onClick={() => onRequestHintLevel(1)}
+                                className="px-1.5 py-0.5 rounded bg-indigo-900/60 hover:bg-indigo-800 text-[10px] text-indigo-300 font-medium border border-indigo-700/60"
+                              >
+                                1. Pytanie
+                              </button>
+                              <button
+                                onClick={() => onRequestHintLevel(2)}
+                                className="px-1.5 py-0.5 rounded bg-amber-900/60 hover:bg-amber-800 text-[10px] text-amber-300 font-medium border border-amber-700/60"
+                              >
+                                2. Analiza
+                              </button>
+                              <button
+                                onClick={() => onRequestHintLevel(3)}
+                                className="px-1.5 py-0.5 rounded bg-rose-900/60 hover:bg-rose-800 text-[10px] text-rose-300 font-medium border border-rose-700/60"
+                              >
+                                3. Koncepcja
+                              </button>
+                            </div>
+                          )}
+                          {onAskMentorAboutError && (
+                            <button
+                              onClick={() => onAskMentorAboutError(`Dlaczego ten test nie przeszedł? Błąd: ${test.error}`)}
+                              className="inline-flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 underline"
+                            >
+                              <Sparkles className="w-2.5 h-2.5" />
+                              Zapytaj Mentora
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {test.error}
                     </div>

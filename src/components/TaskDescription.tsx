@@ -71,6 +71,18 @@ export const TaskDescription: React.FC<TaskDescriptionProps> = ({
           <ReactMarkdown
             remarkPlugins={[remarkMath]}
             rehypePlugins={[rehypeKatex]}
+            components={{
+              a: ({ node, ...props }) => (
+                <a
+                  {...props}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 text-indigo-400 hover:text-indigo-300 font-medium underline transition-colors"
+                >
+                  <span>{props.children}</span>
+                </a>
+              )
+            }}
           >
             {task.descriptionMarkdown}
           </ReactMarkdown>

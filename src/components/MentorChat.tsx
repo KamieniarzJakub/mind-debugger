@@ -11,20 +11,25 @@ import {
   ShieldAlert, 
   Lightbulb, 
   CornerDownLeft, 
+  ExternalLink,
+  Settings,
   HelpCircle,
-  Loader2
+  Loader2,
+  Check
 } from 'lucide-react';
 import { ChatMessage, AISettings, Task, ExecutionResult } from '../types';
 
 interface MentorChatProps {
   messages: ChatMessage[];
-  onSendMessage: (text: string) => void;
+  onSendMessage: (text: string, level?: 1 | 2 | 3) => void;
   onClearChat: () => void;
   isLoading: boolean;
   aiSettings: AISettings;
   currentTask: Task;
   lastExecutionResult: ExecutionResult | null;
   onSelectHintLevel: (level: 1 | 2 | 3) => void;
+  activeHintLevel?: 1 | 2 | 3 | null;
+  onOpenSettings: () => void;
 }
 
 export const MentorChat: React.FC<MentorChatProps> = ({
@@ -36,6 +41,8 @@ export const MentorChat: React.FC<MentorChatProps> = ({
   currentTask,
   lastExecutionResult,
   onSelectHintLevel,
+  activeHintLevel,
+  onOpenSettings
 }) => {
   const [inputText, setInputText] = React.useState('');
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -50,6 +57,55 @@ export const MentorChat: React.FC<MentorChatProps> = ({
     onSendMessage(inputText.trim());
     setInputText('');
   };
+
+  const getModelDisplayInfo = () => {
+    switch (aiSettings.provider) {
+      case 'offline':
+        return {
+          title: 'Wbudowany Sokrates Offline',
+          subtitle: 'Działa lokalnie bez API i bez internetu',
+          badge: 'Offline'
+        };
+      case 'ollama':
+        return {
+          title: `Ollama (${aiSettings.model || 'local'})`,
+          subtitle: `Lokalny model na ${aiSettings.baseUrl || 'localhost:11434'}`,
+          badge: 'Ollama'
+        };
+      case 'gemini':
+        return {
+          title: `Google Gemini (${aiSettings.model || 'gemini-1.5-flash'})`,
+          subtitle: 'Zewnętrzne API Google Generative AI',
+          badge: 'Gemini API'
+        };
+      case 'openai':
+        return {
+          title: `OpenAI (${aiSettings.model || 'gpt-4o-mini'})`,
+          subtitle: 'Zewnętrzne API OpenAI',
+          badge: 'OpenAI'
+        };
+      case 'groq':
+        return {
+          title: `Groq (${aiSettings.model || 'llama-3.3-70b'})`,
+          subtitle: 'Ultraszybkie API Groq Cloud',
+          badge: 'Groq'
+        };
+      case 'anthropic':
+        return {
+          title: `Anthropic (${aiSettings.model || 'claude-3-5-haiku'})`,
+          subtitle: 'Zewnętrzne API Claude',
+          badge: 'Claude'
+        };
+      default:
+        return {
+          title: 'Sokratejski Mentor AI',
+          subtitle: 'Model AI',
+          badge: 'AI'
+        };
+    }
+  };
+
+  const modelInfo = getModelDisplayInfo();
 
   const getQuickQuestions = () => {
     switch (currentTask.id) {
@@ -92,65 +148,129 @@ export const MentorChat: React.FC<MentorChatProps> = ({
     }
   };
 
+  const getHintBadge = (level?: 1 | 2 | 3) => {
+    switch (level) {
+      case 1:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            🔵 Poziom 1: Intuicja matematyczna
+          </span>
+        );
+      case 2:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            🟡 Poziom 2: Analiza kodu & osi
+          </span>
+        );
+      case 3:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+            🔴 Poziom 3: Koncepcja algorytmiczna
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-slate-950">
-      {/* Mentor Header */}
-      <div className="h-12 px-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between select-none">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xs font-bold text-slate-200">Sokratejski Mentor AI</h2>
-            <div className="text-[10px] text-indigo-400 font-mono">
-              Nacisk na zrozumienie • Bez gotowców
+      {/* Mentor Header with Detailed Model Info */}
+      <div className="p-3 bg-slate-900 border-b border-slate-800 select-none">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-xs font-bold text-slate-100">{modelInfo.title}</h2>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60">
+                  {modelInfo.badge}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-tight">
+                {modelInfo.subtitle}
+              </p>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {messages.length > 0 && (
+          <div className="flex items-center gap-1">
             <button
-              onClick={onClearChat}
-              className="p-1.5 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-              title="Wyczyść historię czatu"
+              onClick={onOpenSettings}
+              className="p-1 rounded text-slate-400 hover:text-indigo-300 hover:bg-slate-800 transition-colors"
+              title="Zmień model AI lub skonfiguruj API"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Settings className="w-3.5 h-3.5" />
             </button>
-          )}
+            {messages.length > 0 && (
+              <button
+                onClick={onClearChat}
+                className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+                title="Wyczyść historię czatu"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Socratic Hint Quick Bar */}
-      <div className="px-4 py-2 bg-slate-900/40 border-b border-slate-800/80 flex items-center justify-between gap-2 text-xs">
-        <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-          <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-          Stopnie podpowiedzi:
-        </span>
-        <div className="flex items-center gap-1.5">
+      {/* Socratic Hint Quick Bar with Active Indicator */}
+      <div className="px-3 py-2 bg-slate-900/60 border-b border-slate-800/80 flex flex-col gap-1.5 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
+            <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+            Wybierz poziom podpowiedzi:
+          </span>
+          {activeHintLevel && (
+            <span className="text-[10px] font-mono text-indigo-400">
+              Aktywny: Poziom {activeHintLevel}
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5">
           <button
             onClick={() => onSelectHintLevel(1)}
             disabled={isLoading}
-            className="px-2 py-0.5 rounded bg-indigo-950/70 hover:bg-indigo-900/80 border border-indigo-800/60 text-[11px] font-medium text-indigo-300 transition-colors disabled:opacity-50"
-            title="Poziom 1: Ogólne pytanie naprowadzające na intuicję"
+            className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center justify-center gap-1 ${
+              activeHintLevel === 1
+                ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm shadow-indigo-900'
+                : 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 border-slate-700/80 disabled:opacity-50'
+            }`}
+            title="Poziom 1: Pytanie naprowadzające na intuicję matematyczną"
           >
-            1. Pytanie
+            <span>1. Pytanie</span>
+            {activeHintLevel === 1 && <Check className="w-3 h-3" />}
           </button>
+
           <button
             onClick={() => onSelectHintLevel(2)}
             disabled={isLoading}
-            className="px-2 py-0.5 rounded bg-amber-950/70 hover:bg-amber-900/80 border border-amber-800/60 text-[11px] font-medium text-amber-300 transition-colors disabled:opacity-50"
-            title="Poziom 2: Wskazanie konkretnej osi, zmiennej lub operacji"
+            className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center justify-center gap-1 ${
+              activeHintLevel === 2
+                ? 'bg-amber-600 text-white border-amber-400 shadow-sm shadow-amber-900'
+                : 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 border-slate-700/80 disabled:opacity-50'
+            }`}
+            title="Poziom 2: Wskazanie konkretnej osi, zmiennej lub operacji w kodzie"
           >
-            2. Analiza
+            <span>2. Analiza</span>
+            {activeHintLevel === 2 && <Check className="w-3 h-3" />}
           </button>
+
           <button
             onClick={() => onSelectHintLevel(3)}
             disabled={isLoading}
-            className="px-2 py-0.5 rounded bg-rose-950/70 hover:bg-rose-900/80 border border-rose-800/60 text-[11px] font-medium text-rose-300 transition-colors disabled:opacity-50"
-            title="Poziom 3: Matematyczne wytłumaczenie koncepcji"
+            className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center justify-center gap-1 ${
+              activeHintLevel === 3
+                ? 'bg-rose-600 text-white border-rose-400 shadow-sm shadow-rose-900'
+                : 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 border-slate-700/80 disabled:opacity-50'
+            }`}
+            title="Poziom 3: Wyjaśnienie koncepcji algorytmicznej i matematycznej"
           >
-            3. Koncepcja
+            <span>3. Koncepcja</span>
+            {activeHintLevel === 3 && <Check className="w-3 h-3" />}
           </button>
         </div>
       </div>
@@ -158,14 +278,48 @@ export const MentorChat: React.FC<MentorChatProps> = ({
       {/* Chat Messages */}
       <div className="flex-1 p-4 overflow-y-auto space-y-4">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
+          <div className="h-full flex flex-col items-center justify-center text-center p-4 text-slate-400">
             <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-3">
               <Bot className="w-6 h-6 text-indigo-400" />
             </div>
-            <h3 className="text-sm font-semibold text-slate-200 mb-1">Twój Sokratejski Przewodnik</h3>
+            <h3 className="text-sm font-semibold text-slate-200 mb-1">Sokratejski Mentor Gotowy</h3>
             <p className="text-xs text-slate-400 max-w-xs leading-relaxed mb-4">
-              Gdy Twój kod napotka błąd (np. w wymiarach macierzy czy parametrach potoku), przeanalizuję go i zadam Ci pytanie, które naprowadzi Cię na właściwy trop.
+              Podpowiedzi nie włączają się automatycznie — Ty decydujesz, kiedy potrzebujesz wsparcia! Skorzystaj z przycisków poziomów u góry lub zadaj pytanie.
             </p>
+
+            {/* If test failed, show quick prompt invite */}
+            {lastExecutionResult && !lastExecutionResult.success && (
+              <div className="w-full mb-3 p-3 rounded-xl bg-amber-950/30 border border-amber-800/40 text-amber-200 text-left text-xs">
+                <div className="font-semibold flex items-center gap-1.5 text-amber-300 mb-1">
+                  <Lightbulb className="w-3.5 h-3.5" />
+                  <span>Kod napotkał błąd w testach</span>
+                </div>
+                <p className="text-[11px] text-amber-300/80 mb-2">
+                  Wybierz poziom podpowiedzi, aby mentor naprowadził Cię na właściwy trop:
+                </p>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => onSelectHintLevel(1)}
+                    className="flex-1 py-1 px-2 rounded bg-indigo-900/60 hover:bg-indigo-800 border border-indigo-700 text-[10px] font-semibold text-indigo-200"
+                  >
+                    1. Pytanie
+                  </button>
+                  <button
+                    onClick={() => onSelectHintLevel(2)}
+                    className="flex-1 py-1 px-2 rounded bg-amber-900/60 hover:bg-amber-800 border border-amber-700 text-[10px] font-semibold text-amber-200"
+                  >
+                    2. Analiza
+                  </button>
+                  <button
+                    onClick={() => onSelectHintLevel(3)}
+                    className="flex-1 py-1 px-2 rounded bg-rose-900/60 hover:bg-rose-800 border border-rose-700 text-[10px] font-semibold text-rose-200"
+                  >
+                    3. Koncepcja
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="w-full text-left bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
                 Szybkie pytania do mentora:
@@ -188,7 +342,7 @@ export const MentorChat: React.FC<MentorChatProps> = ({
           messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex gap-3 text-xs leading-relaxed ${
+              className={`flex gap-2.5 text-xs leading-relaxed ${
                 msg.role === 'user' ? 'justify-end' : 'justify-start'
               }`}
             >
@@ -198,7 +352,7 @@ export const MentorChat: React.FC<MentorChatProps> = ({
                 </div>
               )}
 
-              <div className={`max-w-[85%] rounded-2xl p-3.5 shadow-sm ${
+              <div className={`max-w-[88%] rounded-2xl p-3.5 shadow-sm ${
                 msg.role === 'user'
                   ? 'bg-indigo-600 text-white rounded-tr-none'
                   : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-none'
@@ -210,6 +364,12 @@ export const MentorChat: React.FC<MentorChatProps> = ({
                   </div>
                 )}
 
+                {msg.role === 'assistant' && msg.hintLevel && (
+                  <div className="mb-2">
+                    {getHintBadge(msg.hintLevel)}
+                  </div>
+                )}
+
                 {msg.role === 'user' ? (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 ) : (
@@ -217,6 +377,19 @@ export const MentorChat: React.FC<MentorChatProps> = ({
                     <ReactMarkdown
                       remarkPlugins={[remarkMath]}
                       rehypePlugins={[rehypeKatex]}
+                      components={{
+                        a: ({ node, ...props }) => (
+                          <a
+                            {...props}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-0.5 text-indigo-400 hover:text-indigo-300 font-medium underline transition-colors"
+                          >
+                            <span>{props.children}</span>
+                            <ExternalLink className="w-2.5 h-2.5 inline" />
+                          </a>
+                        )
+                      }}
                     >
                       {msg.content}
                     </ReactMarkdown>
@@ -238,13 +411,13 @@ export const MentorChat: React.FC<MentorChatProps> = ({
         )}
 
         {isLoading && (
-          <div className="flex gap-3 text-xs justify-start animate-fadeIn">
+          <div className="flex gap-2.5 text-xs justify-start animate-fadeIn">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-600 flex-shrink-0 flex items-center justify-center mt-0.5">
               <Bot className="w-4 h-4 text-white" />
             </div>
             <div className="bg-slate-900 border border-slate-800 rounded-2xl rounded-tl-none p-3.5 text-slate-300 flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-              <span className="text-xs text-slate-400">Mentor analizuje kod i formułuje pytanie naprowadzające...</span>
+              <span className="text-xs text-slate-400">Mentor formułuje podpowiedź...</span>
             </div>
           </div>
         )}
@@ -254,7 +427,7 @@ export const MentorChat: React.FC<MentorChatProps> = ({
 
       {/* Suggested Quick Follow-ups */}
       {messages.length > 0 && !isLoading && (
-        <div className="px-4 py-1.5 bg-slate-900/60 border-t border-slate-800/60 overflow-x-auto flex gap-1.5 no-scrollbar">
+        <div className="px-3 py-1.5 bg-slate-900/60 border-t border-slate-800/60 overflow-x-auto flex gap-1.5 no-scrollbar">
           {getQuickQuestions().slice(0, 2).map((q, idx) => (
             <button
               key={idx}
@@ -273,7 +446,7 @@ export const MentorChat: React.FC<MentorChatProps> = ({
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Zapytaj mentora (np. 'Dlaczego kształty nie pasują?')..."
+          placeholder="Zapytaj mentora lub poproś o poziom 1, 2 lub 3..."
           disabled={isLoading}
           className="flex-1 bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none transition-colors"
         />

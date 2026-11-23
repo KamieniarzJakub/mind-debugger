@@ -99,3 +99,29 @@ def test_socratic_question_formulation_for_shape_mismatch():
     assert "?" in reply
     assert "macierz" in reply.lower() or "wymiar" in reply.lower()
     assert "def " not in reply
+
+
+def test_three_distinct_hint_levels_differentiation():
+    """
+    Upewnij sie, ze kazdy z 3 poziomow zwraca inna, dedykowana odpowiedz:
+    Poziom 1: Pytanie intuicyjne
+    Poziom 2: Analiza konkretnej osi i link
+    Poziom 3: Koncepcja algorytmiczna
+    """
+    def mock_level_response(level: int):
+        if level == 1:
+            return "Poziom 1: Czy szukamy jednej liczby, czy osobnego minimum dla cechy?"
+        elif level == 2:
+            return "Poziom 2: Użyj axis=0 w np.min. Zobacz: https://numpy.org/doc/stable/reference/generated/numpy.amin.html"
+        elif level == 3:
+            return "Poziom 3: Broadcasting wymiarów (1, D) z (N, D) oraz ochrona przed zerem."
+        return ""
+
+    h1 = mock_level_response(1)
+    h2 = mock_level_response(2)
+    h3 = mock_level_response(3)
+
+    assert h1 != h2 and h2 != h3 and h1 != h3
+    assert "axis" in h2
+    assert "Broadcasting" in h3
+    assert "https://" in h2

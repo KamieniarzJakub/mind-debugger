@@ -91,19 +91,19 @@ export const Header: React.FC<HeaderProps> = ({
   const getProviderLabel = () => {
     switch (aiSettings.provider) {
       case 'offline':
-        return 'Sokrates Offline';
+        return 'Model: Sokrates (Tryb Offline)';
       case 'ollama':
-        return `Ollama (${aiSettings.model || 'local'})`;
+        return `Model: Ollama (${aiSettings.model || 'local'})`;
       case 'gemini':
-        return `Gemini (${aiSettings.model || 'flash'})`;
+        return `Model: Gemini (${aiSettings.model || 'flash'})`;
       case 'openai':
-        return `OpenAI (${aiSettings.model || 'gpt-4o-mini'})`;
+        return `Model: OpenAI (${aiSettings.model || 'gpt-4o-mini'})`;
       case 'groq':
-        return `Groq (${aiSettings.model || 'llama-3.3'})`;
+        return `Model: Groq (${aiSettings.model || 'llama-3.3'})`;
       case 'anthropic':
-        return `Claude (${aiSettings.model || 'haiku'})`;
+        return `Model: Claude (${aiSettings.model || 'haiku'})`;
       default:
-        return 'AI Mentor';
+        return 'Model: AI Mentor';
     }
   };
 

@@ -43,6 +43,7 @@ export default function App() {
   // Chat messages per task
   const [chatPerTask, setChatPerTask] = React.useState<Record<string, ChatMessage[]>>({});
   const [isAiLoading, setIsAiLoading] = React.useState(false);
+  const [activeHintLevel, setActiveHintLevel] = React.useState<1 | 2 | 3 | null>(null);
 
   // Settings & Modals
   const [aiSettings, setAiSettings] = React.useState<AISettings>(() => {
@@ -91,6 +92,7 @@ export default function App() {
   const handleSelectTask = (task: Task) => {
     setCurrentTask(task);
     setExecutionResult(null);
+    setActiveHintLevel(null);
   };
 
   // Run code and unit tests
@@ -102,11 +104,7 @@ export default function App() {
     try {
       const res = await pyodideService.runCode(currentCode, currentTask.testSuiteCode, 12000);
       setExecutionResult(res);
-
-      // If test failed, automatically trigger Socratic mentor advice if chat is quiet!
-      if (!res.success && currentMessages.length === 0) {
-        triggerMentorAdvice(res, undefined, 1);
-      }
+      // NOTE: Do not auto-trigger mentor advice. The user decides voluntarily when they want a hint!
     } catch (err: any) {
       setExecutionResult({
         success: false,
@@ -152,7 +150,7 @@ export default function App() {
         res,
         aiSettings,
         userQuery,
-        currentMessages
+        hintLevel
       );
 
       const assistantMsg: ChatMessage = {
@@ -188,10 +186,11 @@ export default function App() {
   };
 
   const handleSelectHintLevel = (level: 1 | 2 | 3) => {
+    setActiveHintLevel(level);
     const levelLabels = {
-      1: 'Podaj mi wskazówkę poziomu 1 (ogólne pytanie naprowadzające na intuicję matematyczną)',
-      2: 'Podaj mi wskazówkę poziomu 2 (wskaż konkretną oś, zmienną lub operację w moim kodzie)',
-      3: 'Podaj mi wskazówkę poziomu 3 (wyjaśnij koncepcję algorytmiczną bez podawania gotowego kodu)'
+      1: 'Poproszę o wskazówkę Poziom 1 (pytanie naprowadzające na ogólną intuicję matematyczną)',
+      2: 'Poproszę o wskazówkę Poziom 2 (analiza mojego kodu, wskazanie osi, parametrów i link do dokumentacji)',
+      3: 'Poproszę o wskazówkę Poziom 3 (koncepcja algorytmiczna i matematyczny mechanizm zjawiska)'
     };
     triggerMentorAdvice(executionResult, levelLabels[level], level);
   };
@@ -265,6 +264,7 @@ export default function App() {
                   result={executionResult}
                   isRunning={isRunning}
                   onAskMentorAboutError={(err) => handleUserSendMessage(`Dlaczego test nie przeszedł? ${err}`)}
+                  onRequestHintLevel={handleSelectHintLevel}
                 />
               </div>
             </div>
@@ -280,6 +280,8 @@ export default function App() {
                 currentTask={currentTask}
                 lastExecutionResult={executionResult}
                 onSelectHintLevel={handleSelectHintLevel}
+                activeHintLevel={activeHintLevel}
+                onOpenSettings={() => setIsSettingsOpen(true)}
               />
             </div>
           </div>
@@ -331,6 +333,7 @@ export default function App() {
                       result={executionResult}
                       isRunning={isRunning}
                       onAskMentorAboutError={(err) => handleUserSendMessage(`Dlaczego test nie przeszedł? ${err}`)}
+                      onRequestHintLevel={handleSelectHintLevel}
                     />
                   </div>
                 </div>
@@ -348,6 +351,8 @@ export default function App() {
                 currentTask={currentTask}
                 lastExecutionResult={executionResult}
                 onSelectHintLevel={handleSelectHintLevel}
+                activeHintLevel={activeHintLevel}
+                onOpenSettings={() => setIsSettingsOpen(true)}
               />
             </div>
           </div>
