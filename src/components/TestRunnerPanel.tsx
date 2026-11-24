@@ -18,6 +18,7 @@ interface TestRunnerPanelProps {
   result: ExecutionResult | null;
   isRunning: boolean;
   onAskMentorAboutError?: (errorDetails: string) => void;
+  onAskMentorAboutSuccess?: () => void;
   onRequestHintLevel?: (level: 1 | 2 | 3) => void;
   height?: number;
   onResizeStart?: (e: React.MouseEvent) => void;
@@ -27,6 +28,7 @@ export const TestRunnerPanel: React.FC<TestRunnerPanelProps> = ({
   result,
   isRunning,
   onAskMentorAboutError,
+  onAskMentorAboutSuccess,
   onRequestHintLevel,
   height,
   onResizeStart,
@@ -226,9 +228,9 @@ export const TestRunnerPanel: React.FC<TestRunnerPanelProps> = ({
               ))}
 
               {result.success && (
-                <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/40 to-teal-950/40 border border-emerald-700/50 text-emerald-200 flex items-center justify-between">
+                <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/40 to-teal-950/40 border border-emerald-700/50 text-emerald-200 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold">
+                    <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold flex-shrink-0">
                       ✓
                     </div>
                     <div>
@@ -236,6 +238,15 @@ export const TestRunnerPanel: React.FC<TestRunnerPanelProps> = ({
                       <div className="text-xs text-emerald-400/80">Opanowałeś kluczowe koncepcje i wymiary danych w tym zadaniu.</div>
                     </div>
                   </div>
+                  {onAskMentorAboutSuccess && (
+                    <button
+                      onClick={onAskMentorAboutSuccess}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/50 text-xs font-semibold text-emerald-200 transition-colors cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>Podsumuj i zapytaj o złożoność</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>

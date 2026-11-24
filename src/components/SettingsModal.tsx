@@ -101,6 +101,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         } else {
           setTestResult({ success: false, message: `Błąd autoryzacji API (Status ${res.status}).` });
         }
+      } else if (form.provider === 'anthropic') {
+        const res = await fetch('https://api.anthropic.com/v1/models', {
+          headers: {
+            'x-api-key': form.apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          }
+        });
+        if (res.ok) {
+          setTestResult({ success: true, message: 'Klucz API Anthropic Claude jest poprawny i aktywny!' });
+        } else {
+          setTestResult({ success: false, message: `Błąd autoryzacji Anthropic (Status ${res.status}).` });
+        }
       } else {
         setTestResult({ success: true, message: 'Klucz zapisany pomyślnie!' });
       }

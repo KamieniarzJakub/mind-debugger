@@ -141,6 +141,12 @@ export const MentorChat: React.FC<MentorChatProps> = ({
           'Dlaczego musimy podzielić sumę gradientów przez N?',
           'Jak poprawnie wymnożyć X.T z wektorem błędu e?'
         ];
+      case 'task-6':
+        return [
+          'Czym różni się StratifiedKFold od zwykłego KFold?',
+          'Dlaczego na niezbalansowanych klasach accuracy oszukuje?',
+          'Podaj konkretny przykład liczbowy Accuracy vs F1'
+        ];
       default:
         return [
           'Gdzie w moim kodzie gubię wymiary?',

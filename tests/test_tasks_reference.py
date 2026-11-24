@@ -159,3 +159,41 @@ def test_task_5_gradient_descent():
     w_next, b_next, loss = gradient_descent_step_ref(X, y, w, b, learning_rate=0.1)
     assert np.isclose(w_next[0], 0.5)
     assert np.isclose(b_next, 0.3)
+
+
+# Zadanie 6: StratifiedKFold i F1-Score dla niezbalansowanych klas
+def evaluate_imbalanced_cv_ref(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> dict:
+    from sklearn.model_selection import StratifiedKFold, cross_val_score
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("classifier", LogisticRegression(class_weight="balanced", max_iter=500, random_state=42))
+    ])
+    scores = cross_val_score(pipeline, X, y, cv=cv, scoring="f1")
+    return {
+        "mean_f1": float(np.mean(scores)),
+        "std_f1": float(np.std(scores)),
+        "scores": scores,
+        "cv": cv,
+        "pipeline": pipeline
+    }
+
+
+def test_task_6_stratified_cv():
+    from sklearn.model_selection import StratifiedKFold, cross_val_score
+    X, y = make_classification(
+        n_samples=250,
+        n_features=8,
+        n_informative=5,
+        weights=[0.88, 0.12],
+        random_state=42
+    )
+    res = evaluate_imbalanced_cv_ref(X, y, n_splits=5)
+    assert isinstance(res["cv"], StratifiedKFold)
+    assert isinstance(res["pipeline"], Pipeline)
+    clf = res["pipeline"].named_steps["classifier"]
+    assert clf.class_weight == "balanced"
+    expected_f1 = cross_val_score(res["pipeline"], X, y, cv=res["cv"], scoring="f1")
+    assert np.allclose(res["scores"], expected_f1)
+    assert len(res["scores"]) == 5
+    assert 0.0 <= res["mean_f1"] <= 1.0

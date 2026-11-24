@@ -48,7 +48,7 @@ async function initPyodide(): Promise<any> {
 }
 
 workerCtx.onmessage = async (event: MessageEvent) => {
-  const { type, id, code, testSuiteCode } = event.data;
+  const { type, id, code, testSuiteCode, requiredSymbols = [] } = event.data;
 
   if (type === 'INIT') {
     try {
@@ -60,14 +60,17 @@ workerCtx.onmessage = async (event: MessageEvent) => {
   }
 
   if (type === 'RUN_CODE') {
-    const startTime = performance.now();
+    let startTime = performance.now();
     try {
       const pyodide = await initPyodide();
+      startTime = performance.now();
+      workerCtx.postMessage({ type: 'EXECUTION_STARTED', id });
 
-      // Python execution wrapper with stdout capture and test recorder
+      // Python execution wrapper with AST signature validation, stdout capture and test recorder
       const runnerScript = `
 import sys
 import io
+import ast
 import json
 import traceback
 
@@ -91,18 +94,45 @@ sys.stderr = __captured_stderr
 
 __execution_error = None
 __raw_traceback = None
+__required_symbols = ${JSON.stringify(requiredSymbols)}
+__user_code_str = ${JSON.stringify(code)}
+
+# 0. Wstepna walidacja AST (skladnia oraz ochrona sygnatur przed przypadkowym usunieciem)
+try:
+    __parsed_ast = ast.parse(__user_code_str)
+    if __required_symbols:
+        __defined_names = {
+            node.name
+            for node in __parsed_ast.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        }
+        __missing = [sym for sym in __required_symbols if sym not in __defined_names]
+        if __missing:
+            __missing_str = ", ".join(__missing)
+            __msg = f"Nie znaleziono wymaganej definicji ({__missing_str}) w Twoim kodzie! Czy przez przypadek zmieniłeś nazwę lub usunąłeś nagłówek funkcji/klasy? Użyj przycisku Reset w edytorze, aby przywrócić sygnaturę."
+            __execution_error = f"SignatureError: {__msg}"
+            __record_test__("signature_check", "Weryfikacja sygnatury funkcji/klasy", False, __msg)
+            sys.stderr.write(__execution_error + "\\n")
+except SyntaxError as se:
+    __msg = f"Błąd składni Pythona w linii {se.lineno}: {se.msg}"
+    __execution_error = f"SyntaxError: {__msg}"
+    __raw_traceback = traceback.format_exc()
+    __record_test__("syntax_check", "Analiza składni Pythona", False, __msg)
+    sys.stderr.write(__raw_traceback)
 
 # 1. Wykonaj kod uzytkownika
-try:
-    user_globals = {
-        "__name__": "__main__",
-        "__record_test__": __record_test__
-    }
-    exec(${JSON.stringify(code)}, user_globals)
-except Exception as e:
-    __execution_error = f"{type(e).__name__}: {str(e)}"
-    __raw_traceback = traceback.format_exc()
-    sys.stderr.write(__raw_traceback)
+if __execution_error is None:
+    try:
+        user_globals = {
+            "__name__": "__main__",
+            "__record_test__": __record_test__
+        }
+        exec(__user_code_str, user_globals)
+    except Exception as e:
+        __execution_error = f"{type(e).__name__}: {str(e)}"
+        __raw_traceback = traceback.format_exc()
+        __record_test__("execution_error", "Wykonanie kodu użytkownika", False, __execution_error)
+        sys.stderr.write(__raw_traceback)
 
 # 2. Jesli kod uzytkownika wykonal sie bez bledow skladni/importu, uruchom testy
 if __execution_error is None:
@@ -116,6 +146,12 @@ if __execution_error is None:
         __execution_error = f"AssertionError: {str(ae)}"
         __raw_traceback = traceback.format_exc()
         __record_test__("failed_assertion", "Weryfikacja testów jednostkowych", False, str(ae))
+        sys.stderr.write(__raw_traceback)
+    except TypeError as te:
+        __hint = f"{str(te)} — Sprawdź, czy nie zmieniłeś parametrów (argumentów) wymaganej funkcji lub klasy!"
+        __execution_error = f"TypeError: {__hint}"
+        __raw_traceback = traceback.format_exc()
+        __record_test__("signature_runtime_error", "Błąd argumentów / sygnatury funkcji", False, __hint)
         sys.stderr.write(__raw_traceback)
     except Exception as e:
         __execution_error = f"{type(e).__name__}: {str(e)}"

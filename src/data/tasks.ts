@@ -5,9 +5,11 @@ export const TASKS: Task[] = [
     id: 'task-1',
     slug: 'numpy-minmax-scaling',
     title: 'Normalizacja Min-Max i Broadcasting w NumPy',
+    module: 'Moduł 1: Fundamenty NumPy & Sieci Neuronowe',
     category: 'NumPy & Analiza Danych',
     difficulty: 'Łatwy',
     estimatedMinutes: 10,
+    requiredSymbols: ['min_max_scale'],
     summary: 'Zaimplementuj skalowanie cech do zadanego zakresu z poprawnym dopasowaniem osi i zabezpieczeniem przed dzieleniem przez zero.',
     descriptionMarkdown: `### 🎯 Cel Zadania
 Przetwarzanie wstępne danych (preprocessing) to fundament każdego potoku uczenia maszynowego. W tym zadaniu zaimplementujesz funkcję **skalowania cech min-max** (ang. *Min-Max Normalization*) wyłącznie przy użyciu biblioteki \`NumPy\`.
@@ -133,9 +135,11 @@ def run_all_tests():
     id: 'task-2',
     slug: 'numpy-dense-layer',
     title: 'Warstwa Liniowa i Mnożenie Macierzy w NumPy',
+    module: 'Moduł 1: Fundamenty NumPy & Sieci Neuronowe',
     category: 'Sieci Neuronowe',
     difficulty: 'Średniozaawansowany',
     estimatedMinutes: 15,
+    requiredSymbols: ['DenseLayer'],
     summary: 'Zaimplementuj propagację w przód (forward pass) w pełnopołączonej warstwie gęstej (Dense Layer), unikając błędów niezgodności kształtów macierzy.',
     descriptionMarkdown: `### 🎯 Cel Zadania
 Warstwa w pełni połączona (ang. *Dense* lub *Linear Layer*) to podstawowy klocek konstrukcyjny wielowarstwowych perceptronów (MLP) i transformatorów. W tym zadaniu zaimplementujesz klasę \`DenseLayer\` w czystym \`NumPy\`.
@@ -266,9 +270,11 @@ def run_all_tests():
     id: 'task-3',
     slug: 'numpy-stable-softmax',
     title: 'Numerycznie Stabilna Funkcja Softmax',
+    module: 'Moduł 1: Fundamenty NumPy & Sieci Neuronowe',
     category: 'Matematyka ML',
     difficulty: 'Średniozaawansowany',
     estimatedMinutes: 15,
+    requiredSymbols: ['stable_softmax'],
     summary: 'Zaimplementuj funkcję aktywacji Softmax odporną na przepełnienie zmiennoprzecinkowe (float overflow) dla dużych logitów.',
     descriptionMarkdown: `### 🎯 Cel Zadania
 Funkcja **Softmax** przekształca wektor surowych wyników modelu (*logitów*) w dyskretny rozkład prawdopodobieństwa, którego suma wynosi dokładnie $1.0$. W praktycznych zastosowaniach naiwna implementacja powoduje jednak poważne błędy numeryczne (\`overflow in exp\` i wartości \`NaN\`).
@@ -377,9 +383,11 @@ def run_all_tests():
     id: 'task-4',
     slug: 'sklearn-pipeline-leakage',
     title: 'Scikit-Learn Pipeline & Zapobieganie Data Leakage',
+    module: 'Moduł 2: Scikit-Learn & Optymalizacja ML',
     category: 'Scikit-Learn',
     difficulty: 'Średniozaawansowany',
     estimatedMinutes: 15,
+    requiredSymbols: ['build_and_evaluate_pipeline'],
     summary: 'Zbuduj potok uczenia maszynowego w scikit-learn, chroniąc model przed wyciekiem danych (data leakage) ze zbioru testowego.',
     descriptionMarkdown: `### 🎯 Cel Zadania
 Jednym z najczęstszych i najbardziej podstępnych błędów w inżynierii danych jest **wyciek danych** (ang. *Data Leakage*). Polega on na nieświadomym wykorzystaniu informacji ze zbioru testowego podczas trenowania modelu lub przygotowywania danych (np. obliczanie średniej i odchylenia do skalowania przed podziałem na train i test).
@@ -537,9 +545,11 @@ def run_all_tests():
     id: 'task-5',
     slug: 'numpy-gradient-descent',
     title: 'Krok Gradient Descent dla Regresji Liniowej w NumPy',
+    module: 'Moduł 2: Scikit-Learn & Optymalizacja ML',
     category: 'Optymalizacja',
     difficulty: 'Zaawansowany',
     estimatedMinutes: 20,
+    requiredSymbols: ['gradient_descent_step'],
     summary: 'Wyprowadź wektorowe pochodne cząstkowe błędu średniokwadratowego (MSE) i zaimplementuj krok algorytmu spadku wzdłuż gradientu.',
     descriptionMarkdown: `### 🎯 Cel Zadania
 Algorytm spadku wzdłuż gradientu (ang. *Gradient Descent*) stanowi serce uczenia sieci neuronowych i modeli liniowych. W tym zadaniu zaimplementujesz pojedynczy krok optymalizacyjny dla modelu regresji liniowej w oparciu o wektoryzację w bibliotece \`NumPy\`.
@@ -707,6 +717,151 @@ def run_all_tests():
         level1Hint: "Jak definiujemy funkcję błędu średniokwadratowego (MSE)? Czy to suma błędów, czy średnia błędów?",
         level2Hint: "Sprawdź, czy podzieliłeś gradienty `dw` i `db` przez liczbę próbek `N`. Bez tego krok rośnie wraz z wielkością zbioru danych.",
         level3Hint: "Zastosuj `dw = (X.T @ error) / N` oraz `db = np.sum(error) / N`."
+      }
+    ]
+  },
+  {
+    id: 'task-6',
+    slug: 'sklearn-stratified-cv',
+    title: 'Walidacja Krzyżowa StratifiedKFold i F1-Score',
+    module: 'Moduł 2: Scikit-Learn & Optymalizacja ML',
+    category: 'Scikit-Learn',
+    difficulty: 'Zaawansowany',
+    estimatedMinutes: 20,
+    requiredSymbols: ['evaluate_imbalanced_cv'],
+    summary: 'Zaimplementuj stratyfikowaną walidację krzyżową (StratifiedKFold) z potokiem Pipeline i metryką F1 dla niezbalansowanych danych.',
+    descriptionMarkdown: `### 🎯 Cel Zadania
+W rzeczywistych problemach (np. wykrywanie oszustw, diagnostyka medyczna) klasy są silnie **niezbalansowane** (np. 90% klasy 0 i tylko 10% klasy 1). Zwykłe \`KFold\` oraz metryka \`accuracy\` dają wtedy fałszywie optymistyczne wyniki.
+
+W tym zadaniu poprawisz funkcję \`evaluate_imbalanced_cv(X, y, n_splits=5)\` w bibliotece \`scikit-learn\`.
+
+### 🛠️ Wymagania Implementacyjne
+1. **Stratyfikacja foldów:** Zamiast zwykłego \`KFold\` użyj \`StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)\`, aby każdy fold zachowywał proporcję klasy mniejszościowej.
+2. **Bezpieczny Pipeline:** Zbuduj potok \`Pipeline\` ze skalowaniem \`StandardScaler()\` i klasyfikatorem \`LogisticRegression(class_weight='balanced', max_iter=500, random_state=42)\`.
+3. **Właściwa metryka:** Ewaluuj potok za pomocą \`cross_val_score(..., scoring='f1')\` zamiast \`accuracy\`.
+
+### ⚠️ Pułapki
+- **Brak stratyfikacji:** W małych zbiorach niezbalansowanych zwykłe \`KFold\` może utworzyć fold bez ani jednej próbki klasy pozytywnej.
+- **Pułapka Accuracy:** Model przewidujący zawsze \`0\` przy 90% klasy większościowej osiąga \`90% accuracy\`, ale jego **F1-score wynosi 0.0**!
+`,
+    starterCode: `import numpy as np
+from sklearn.model_selection import KFold, StratifiedKFold, cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+
+def evaluate_imbalanced_cv(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> dict:
+    """
+    Przeprowadza stratyfikowana walidacje krzyzowa dla niezbalansowanego zbioru danych.
+    
+    Zwraca slownik:
+        {
+            "mean_f1": float,
+            "std_f1": float,
+            "scores": np.ndarray,
+            "cv": StratifiedKFold,
+            "pipeline": Pipeline
+        }
+    """
+    # Krok 1: Zdefiniuj obiekt walidacji krzyzowej
+    # UWAGA: czy zwykly KFold zachowuje proporcje klas niezbalansowanych?
+    cv = KFold(n_splits=n_splits, shuffle=True, random_state=42) # TODO: uzyj StratifiedKFold
+    
+    # Krok 2: Zbuduj bezpieczny Pipeline (skaler + regresja logistyczna z class_weight='balanced')
+    pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("classifier", LogisticRegression(max_iter=500, random_state=42)) # TODO: uwzglednij niezbalansowanie klas
+    ])
+    
+    # Krok 3: Policz wyniki walidacji krzyzowej odpowiednia metryka dla klas niezbalansowanych
+    scores = cross_val_score(pipeline, X, y, cv=cv, scoring="accuracy") # TODO: zmien metryke na F1
+    
+    return {
+        "mean_f1": float(np.mean(scores)),
+        "std_f1": float(np.std(scores)),
+        "scores": scores,
+        "cv": cv,
+        "pipeline": pipeline
+    }
+`,
+    referenceSolution: `import numpy as np
+from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+
+def evaluate_imbalanced_cv(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> dict:
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    
+    pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("classifier", LogisticRegression(class_weight="balanced", max_iter=500, random_state=42))
+    ])
+    
+    scores = cross_val_score(pipeline, X, y, cv=cv, scoring="f1")
+    
+    return {
+        "mean_f1": float(np.mean(scores)),
+        "std_f1": float(np.std(scores)),
+        "scores": scores,
+        "cv": cv,
+        "pipeline": pipeline
+    }
+`,
+    testSuiteCode: `
+def run_all_tests():
+    import numpy as np
+    from sklearn.datasets import make_classification
+    from sklearn.model_selection import StratifiedKFold
+    from sklearn.pipeline import Pipeline
+    
+    X, y = make_classification(
+        n_samples=250,
+        n_features=8,
+        n_informative=5,
+        weights=[0.88, 0.12],
+        random_state=42
+    )
+    
+    res = evaluate_imbalanced_cv(X, y, n_splits=5)
+    
+    # Test 1: Weryfikacja StratifiedKFold
+    assert isinstance(res["cv"], StratifiedKFold), f"Oczekiwano StratifiedKFold dla niezbalansowanych klas, otrzymano {type(res['cv']).__name__}!"
+    __record_test__("test_stratified_cv", "Uzycie StratifiedKFold zachowujacego proporcje klas", True)
+    
+    # Test 2: Weryfikacja potoku Pipeline i class_weight='balanced'
+    pipe = res["pipeline"]
+    assert isinstance(pipe, Pipeline), "Model musi byc opakowany w obiekt Pipeline!"
+    clf = pipe.named_steps.get("classifier")
+    assert clf is not None and getattr(clf, "class_weight", None) == "balanced", "Klasyfikator LogisticRegression powinien miec ustawione class_weight='balanced'!"
+    __record_test__("test_pipeline_balanced", "Pipeline z StandardScaler i class_weight='balanced'", True)
+    
+    # Test 3: Weryfikacja czy metryka to F1 (nie accuracy)
+    # Na tym zbiorze niezbalansowanym accuracy jest > 0.85, a balanced F1 jest istotnie nizsze (ok. 0.55 - 0.80)
+    from sklearn.model_selection import cross_val_score
+    expected_f1 = cross_val_score(pipe, X, y, cv=res["cv"], scoring="f1")
+    assert np.allclose(res["scores"], expected_f1), f"Wyniki nie odpowiadaja metryce scoring='f1'! Otrzymano srednia {res['mean_f1']:.4f}, oczekiwano {np.mean(expected_f1):.4f}."
+    assert len(res["scores"]) == 5, f"Oczekiwano 5 wynikow foldow, otrzymano {len(res['scores'])}"
+    __record_test__("test_f1_scoring", "Poprawne uzycie metryki scoring='f1' w cross_val_score", True)
+`,
+    commonErrors: [
+      {
+        pattern: "StratifiedKFold",
+        level1Hint: "Co może stać się w zwykłym KFold, gdy tylko 10% próbek należy do klasy pozytywnej? Czy każdy fold dostanie równą reprezentację tej klasy?",
+        level2Hint: "Zastąp `KFold` klasą `StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)`.",
+        level3Hint: "Stratyfikacja dzieli zbiór tak, aby stosunek klas 0/1 w każdym foldzie odpowiadał rozkładowi w całym zbiorze."
+      },
+      {
+        pattern: "class_weight",
+        level1Hint: "Gdy klasa 0 występuje 8 razy częściej niż klasa 1, na czym skupia się standardowa funkcja kosztu klasyfikatora?",
+        level2Hint: "Przekaż `class_weight='balanced'` do `LogisticRegression(...)`, aby automatycznie zwiększyć wagę błędów na klasie mniejszościowej.",
+        level3Hint: "Tryb `balanced` skaluje wagi odwrotnie proporcjonalnie do częstości występowania klas: $n_{samples} / (n_{classes} \\cdot np.bincount(y))$."
+      },
+      {
+        pattern: "scoring='f1'",
+        level1Hint: "Dlaczego na zbiorze z 90% klasy 0 metryka accuracy oszukuje (nawet stały model ma 90%)?",
+        level2Hint: "W `cross_val_score(...)` zamień `scoring='accuracy'` na `scoring='f1'`.",
+        level3Hint: "F1-score jest średnią harmoniczną precyzji (Precision) i czułości (Recall), dzięki czemu silnie karze ignorowanie klasy mniejszościowej."
       }
     ]
   }

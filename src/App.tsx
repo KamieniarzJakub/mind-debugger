@@ -44,6 +44,14 @@ export default function App() {
   const [chatPerTask, setChatPerTask] = React.useState<Record<string, ChatMessage[]>>({});
   const [isAiLoading, setIsAiLoading] = React.useState(false);
   const [activeHintLevel, setActiveHintLevel] = React.useState<1 | 2 | 3 | null>(null);
+  const [solvedTaskIds, setSolvedTaskIds] = React.useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('minddebugger_solved_tasks');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Settings & Modals
   const [aiSettings, setAiSettings] = React.useState<AISettings>(() => {
@@ -203,8 +211,18 @@ export default function App() {
     setExecutionResult(null);
 
     try {
-      const res = await pyodideService.runCode(currentCode, currentTask.testSuiteCode, 12000);
+      const res = await pyodideService.runCode(
+        currentCode,
+        currentTask.testSuiteCode,
+        12000,
+        currentTask.requiredSymbols || []
+      );
       setExecutionResult(res);
+      if (res.success && !solvedTaskIds.includes(currentTask.id)) {
+        const updatedSolved = [...solvedTaskIds, currentTask.id];
+        setSolvedTaskIds(updatedSolved);
+        localStorage.setItem('minddebugger_solved_tasks', JSON.stringify(updatedSolved));
+      }
       // NOTE: Do not auto-trigger mentor advice. The user decides voluntarily when they want a hint!
     } catch (err: any) {
       setExecutionResult({
@@ -248,9 +266,14 @@ export default function App() {
       }));
     }
 
+    const taskIdAtCall = currentTask.id;
+    const streamingMsgId = `ast_${Date.now()}`;
+    let hasStartedStreaming = false;
+    let streamedText = '';
+
     try {
       const targetHintLevel = hintLevel || activeHintLevel || undefined;
-      const history = chatPerTask[currentTask.id] || [];
+      const history = chatPerTask[taskIdAtCall] || [];
       const responseResult = await aiService.getMentorResponse(
         currentTask,
         currentCode,
@@ -258,7 +281,32 @@ export default function App() {
         aiSettings,
         userQuery,
         targetHintLevel,
-        undefined,
+        (token: string) => {
+          streamedText += token;
+          if (!hasStartedStreaming) {
+            hasStartedStreaming = true;
+            setIsAiLoading(false);
+            const initialStreamMsg: ChatMessage = {
+              id: streamingMsgId,
+              role: 'assistant',
+              content: streamedText,
+              timestamp: Date.now(),
+              hintLevel: targetHintLevel,
+              isStreaming: true
+            };
+            setChatPerTask(prev => ({
+              ...prev,
+              [taskIdAtCall]: [...(prev[taskIdAtCall] || []), initialStreamMsg]
+            }));
+          } else {
+            setChatPerTask(prev => ({
+              ...prev,
+              [taskIdAtCall]: (prev[taskIdAtCall] || []).map(msg =>
+                msg.id === streamingMsgId ? { ...msg, content: streamedText } : msg
+              )
+            }));
+          }
+        },
         history
       );
 
@@ -267,20 +315,27 @@ export default function App() {
         setActiveHintLevel(responseResult.hintLevel);
       }
 
-      const assistantMsg: ChatMessage = {
-        id: `ast_${Date.now()}`,
+      const finalMsg: ChatMessage = {
+        id: streamingMsgId,
         role: 'assistant',
         content: responseResult.content,
         timestamp: Date.now(),
         hintLevel: responseResult.hintLevel || targetHintLevel,
         jailbreakBlocked: responseResult.jailbreakBlocked,
-        showModelSwitchPrompt: responseResult.showModelSwitchPrompt
+        showModelSwitchPrompt: responseResult.showModelSwitchPrompt,
+        isStreaming: false
       };
 
-      setChatPerTask(prev => ({
-        ...prev,
-        [currentTask.id]: [...(prev[currentTask.id] || []), assistantMsg]
-      }));
+      setChatPerTask(prev => {
+        const list = prev[taskIdAtCall] || [];
+        const exists = list.some(m => m.id === streamingMsgId);
+        return {
+          ...prev,
+          [taskIdAtCall]: exists
+            ? list.map(m => (m.id === streamingMsgId ? finalMsg : m))
+            : [...list, finalMsg]
+        };
+      });
     } catch (err: any) {
       const fallbackMsg: ChatMessage = {
         id: `ast_err_${Date.now()}`,
@@ -338,6 +393,7 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenAbout={() => setIsAboutOpen(true)}
         aiSettings={aiSettings}
+        solvedTaskIds={solvedTaskIds}
       />
 
       {/* Main Workspace */}
@@ -412,6 +468,7 @@ export default function App() {
                   result={executionResult}
                   isRunning={isRunning}
                   onAskMentorAboutError={(err) => handleUserSendMessage(`Dlaczego test nie przeszedł? ${err}`)}
+                  onAskMentorAboutSuccess={() => triggerMentorAdvice(executionResult, 'Wszystkie testy przeszły! Proszę o krótkie podsumowanie i pytanie pogłębiające o złożoność obliczeniową.')}
                   onRequestHintLevel={handleSelectHintLevel}
                   height={testPanelHeight}
                   onResizeStart={handleVerticalResizeStart}
@@ -504,6 +561,7 @@ export default function App() {
                       result={executionResult}
                       isRunning={isRunning}
                       onAskMentorAboutError={(err) => handleUserSendMessage(`Dlaczego test nie przeszedł? ${err}`)}
+                      onAskMentorAboutSuccess={() => triggerMentorAdvice(executionResult, 'Wszystkie testy przeszły! Proszę o krótkie podsumowanie i pytanie pogłębiające o złożoność obliczeniową.')}
                       onRequestHintLevel={handleSelectHintLevel}
                       height={testPanelHeight}
                       onResizeStart={handleVerticalResizeStart}

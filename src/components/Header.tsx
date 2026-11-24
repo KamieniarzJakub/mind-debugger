@@ -25,6 +25,7 @@ interface HeaderProps {
   onOpenSettings: () => void;
   onOpenAbout: () => void;
   aiSettings: AISettings;
+  solvedTaskIds?: string[];
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,7 +36,8 @@ export const Header: React.FC<HeaderProps> = ({
   workerMessage,
   onOpenSettings,
   onOpenAbout,
-  aiSettings
+  aiSettings,
+  solvedTaskIds = []
 }) => {
   const [taskDropdownOpen, setTaskDropdownOpen] = React.useState(false);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
@@ -159,43 +161,60 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {taskDropdownOpen && (
-            <div className="absolute left-0 mt-2 w-80 md:w-96 rounded-xl bg-slate-900 border border-slate-700/80 shadow-2xl p-2 z-50">
+            <div className="absolute left-0 mt-2 w-80 md:w-[420px] rounded-xl bg-slate-900 border border-slate-700/80 shadow-2xl p-2 z-50">
               <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-800 flex justify-between items-center">
                 <span>Wybierz zadanie ML</span>
-                <span className="text-[10px] text-slate-500">{tasks.length} zadań</span>
+                <span className="text-[10px] font-mono text-emerald-400">
+                  {solvedTaskIds.length}/{tasks.length} zaliczone
+                </span>
               </div>
-              <div className="mt-1 max-h-80 overflow-y-auto space-y-1">
-                {tasks.map((task, idx) => (
-                  <button
-                    key={task.id}
-                    onClick={() => {
-                      onSelectTask(task);
-                      setTaskDropdownOpen(false);
-                    }}
-                    className={`w-full text-left p-2.5 rounded-lg transition-all flex items-start gap-3 ${
-                      task.id === currentTask.id
-                        ? 'bg-indigo-600/20 border border-indigo-500/40 text-white'
-                        : 'hover:bg-slate-800/70 text-slate-300'
-                    }`}
-                  >
-                    <span className="flex-shrink-0 w-6 h-6 rounded-md bg-slate-800 text-xs font-mono font-bold flex items-center justify-center text-slate-400 border border-slate-700 mt-0.5">
-                      {idx + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium leading-snug truncate">{task.title}</div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[11px] text-slate-400 font-mono">{task.category}</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-indigo-300 border border-slate-700">
-                          {task.difficulty}
+              <div className="mt-1 max-h-96 overflow-y-auto space-y-1">
+                {tasks.map((task, idx) => {
+                  const prevModule = idx > 0 ? tasks[idx - 1].module : null;
+                  const showModuleHeader = task.module && task.module !== prevModule;
+                  const isSolved = solvedTaskIds.includes(task.id);
+                  return (
+                    <React.Fragment key={task.id}>
+                      {showModuleHeader && (
+                        <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-indigo-400/90 border-t border-slate-800/80 first:border-t-0 first:pt-1">
+                          {task.module}
+                        </div>
+                      )}
+                      <button
+                        onClick={() => {
+                          onSelectTask(task);
+                          setTaskDropdownOpen(false);
+                        }}
+                        className={`w-full text-left p-2.5 rounded-lg transition-all flex items-start gap-3 ${
+                          task.id === currentTask.id
+                            ? 'bg-indigo-600/20 border border-indigo-500/40 text-white'
+                            : 'hover:bg-slate-800/70 text-slate-300'
+                        }`}
+                      >
+                        <span className={`flex-shrink-0 w-6 h-6 rounded-md text-xs font-mono font-bold flex items-center justify-center border mt-0.5 ${
+                          isSolved
+                            ? 'bg-emerald-950/60 text-emerald-400 border-emerald-700/60'
+                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                        }`}>
+                          {isSolved ? '✓' : idx + 1}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-mono">~{task.estimatedMinutes} min</span>
-                      </div>
-                    </div>
-                    {task.id === currentTask.id && (
-                      <CheckCircle2 className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-1" />
-                    )}
-                  </button>
-                ))}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium leading-snug truncate">{task.title}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[11px] text-slate-400 font-mono">{task.category}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-indigo-300 border border-slate-700">
+                              {task.difficulty}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">~{task.estimatedMinutes} min</span>
+                          </div>
+                        </div>
+                        {task.id === currentTask.id && (
+                          <CheckCircle2 className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-1" />
+                        )}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
           )}

@@ -12,9 +12,11 @@ export interface Task {
   id: string;
   slug: string;
   title: string;
+  module?: string;
   category: Category;
   difficulty: Difficulty;
   estimatedMinutes: number;
+  requiredSymbols?: string[];
   summary: string;
   descriptionMarkdown: string;
   starterCode: string;

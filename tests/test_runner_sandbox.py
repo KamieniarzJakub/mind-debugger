@@ -154,3 +154,20 @@ while True:
     res = execute_sandboxed_code(code, timeout_sec=0.5)
     assert res["timed_out"] is True
     assert "Timeout" in res["error"]
+
+
+def test_runner_ast_signature_check_detects_missing_symbol():
+    import ast
+    user_code = """
+def wrong_function_name(X):
+    return X
+"""
+    required_symbols = ["min_max_scale"]
+    parsed = ast.parse(user_code)
+    defined = {
+        node.name
+        for node in parsed.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    }
+    missing = [s for s in required_symbols if s not in defined]
+    assert missing == ["min_max_scale"]
